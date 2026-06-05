@@ -61,14 +61,20 @@ def main():
         entry = item['entry']
         summary = item['summary']
         
-        # LLMへのプロンプト指示（金融・コンサル視点を意識）
-        prompt = f"""
-        以下のニュースは私の専門外（興味外）のトピックです。
-        ビジネスパーソンとして知っておくべき要点と、「なぜこのニュースが社会や経済にとって重要なのか（どんな影響があるか）」を、
-        専門用語を避けて3〜4行で簡潔に解説してください。
+        # 元のHTMLコンテンツの取得（フルコンテンツがあれば優先）
+        original_html = ''
+        if hasattr(entry, 'content'):
+            original_html = entry.content[0].value
+        else:
+            original_html = summary
         
-        タイトル: {entry.title}
-        概要: {summary}
+        # LLMへのプロンプト指示（大学生向け・用語解説）
+        prompt = f"""
+        以下のニュースを、大学生が理解しやすい柔らかい表現に書き換えてください。
+        その際、専門用語には直後に括弧書きで簡潔な解説を補足してください。例：インフレ（=物価が継続的に上がる状態）
+        HTMLタグは含めず、プレーンテキストで出力してください。
+        
+        対象テキスト: {summary}
         """
         
         try:
@@ -77,24 +83,23 @@ def main():
         except Exception as e:
             ai_explanation = f"AI解説の生成に失敗しました: {e}"
 
-        # RSSエントリーの作成
         fe = fg.add_entry()
         fe.id(entry.link)
         fe.title(f"[AI解説] {entry.title}")
         fe.link(href=entry.link)
         
-        # HTMLタグを使ってiPhoneのRSSリーダーで見やすくフォーマット
+        # AIのテキストと元のHTMLを結合
         description_html = f"""
-        <h3>🤖 AIによる平易な解説</h3>
+        <h3>AI書き換え本文</h3>
         <p>{ai_explanation.replace(chr(10), '<br>')}</p>
         <hr>
-        <h4>📰 元の概要</h4>
-        <p>{summary}</p>
+        <h3>元の記事</h3>
+        {original_html}
+        <hr>
         <p><small>興味類似度スコア: {item['sim']:.3f}</small></p>
         """
         fe.description(description_html)
         
-        # 日付の設定（元記事の日付があれば採用、なければ現在時刻）
         now = datetime.now(pytz.timezone('Asia/Tokyo'))
         fe.pubDate(now)
 
