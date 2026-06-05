@@ -10,14 +10,14 @@ import time
 import re
 
 # --- 設定 ---
-# 取得元のRSS URL (例として日経やロイターなどを想定)
-SOURCE_RSS_URL = "https://assets.wor.jp/rss/rdf/nikkei/news.rdf" 
+# 取得元のRSS URL
+SOURCE_RSS_URL = "https://prtimes.jp/index.rdf"
 
 # あなたの「興味関心」を定義するテキスト（これに似ていない記事を抽出します）
 INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、デジタル、データ分析、音楽、芸術"
 
 # 類似度の閾値（-1.0 〜 1.0）。この数値以下の記事を「興味外」と判定する
-THRESHOLD = 0.35 
+THRESHOLD = 0.50
 # -----------
 
 def main():
