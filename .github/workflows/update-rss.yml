@@ -25,6 +25,7 @@ jobs:
       - name: Run main script
         env:
           API_KEY: ${{ secrets.API_KEY1 }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN1 }}
         run: python main.py
 
       - name: Upload artifact for GitHub Pages
