@@ -46,7 +46,7 @@ def main():
     print(f"-> {len(articles)}件中、{len(target_articles)}件を「興味外（要解説）」と判定しました。")
 
     print("4. Gemini APIによるテキスト再構築を実行中...")
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+    genai.configure(api_key=os.environ["API_KEY"])
     # 無料枠で利用可能、かつ高速なflashモデルを指定
     llm_model = genai.GenerativeModel('gemini-1.5-flash')
     
