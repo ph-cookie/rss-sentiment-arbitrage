@@ -24,7 +24,7 @@ jobs:
 
       - name: Run main script
         env:
-          GEMINI_API_KEY: ${{ secrets.API_KEY }}
+          API_KEY: ${{ secrets.API_KEY1 }}
         run: python main.py
 
       - name: Upload artifact for GitHub Pages
