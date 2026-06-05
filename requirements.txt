@@ -1,0 +1,6 @@
+feedparser==6.0.11
+sentence-transformers==2.7.0
+scikit-learn==1.4.2
+google-generativeai==0.5.2
+feedgen==1.0.0
+pytz==2024.1
