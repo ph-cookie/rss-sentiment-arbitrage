@@ -1,5 +1,8 @@
 name: Generate Custom RSS
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   schedule:
     # 毎日 日本時間 6:00 と 12:00 と 19:00 に実行 (UTC指定: 23:00, 19:00, 11:00) 
