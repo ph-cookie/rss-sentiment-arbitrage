@@ -35,16 +35,15 @@ def main():
     print("3. 類似度計算とフィルタリングを実行中...")
     for entry in articles:
         summary = getattr(entry, 'summary', getattr(entry, 'description', ''))
-        # 記事テキストに 'passage: ' を付与
         text_to_embed = "passage: " + f"{entry.title} {summary}"
         
         article_vector = embedder.encode([text_to_embed])
         sim = cosine_similarity(interest_vector, article_vector)[0][0]
         
-        # 実際の類似度をログに出力して確認可能にする
         print(f"[{sim:.3f}] {entry.title}")
         
         if sim < THRESHOLD:
+            target_articles.append({'entry': entry, 'sim': sim, 'summary': summary})
             
     print(f"-> {len(articles)}件中、{len(target_articles)}件を「興味外（要解説）」と判定。")
 
