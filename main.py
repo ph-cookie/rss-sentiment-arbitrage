@@ -17,7 +17,7 @@ SOURCE_RSS_URL = "https://prtimes.jp/index.rdf"
 INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、デジタル、データ分析、音楽、芸術"
 
 # 類似度の閾値（-1.0 〜 1.0）。この数値以下の記事を「興味外」と判定する
-THRESHOLD = 0.80
+THRESHOLD = 0.35
 # -----------
 
 def main():
@@ -94,10 +94,15 @@ def main():
         except Exception as e:
             ai_explanation = f"AI解説の生成に失敗: {e}"
 
+        # URLのクリーンアップ（空白・改行・不要なフラグメントを除去）
+        raw_link = entry.link.strip().split('#')[0]
+        
         fe = fg.add_entry()
-        fe.id(entry.link)
+        fe.id(raw_link)
         fe.title(f"[AI解説] {entry.title}")
-        fe.link(href=entry.link)
+        
+        # feedgenの仕様に合わせ、hrefを辞書型または直接指定で確実に渡す
+        fe.link(href=raw_link)
         
         description_html = f"""
         <h3>AI書換え本文</h3>
@@ -108,7 +113,11 @@ def main():
         <hr>
         <p><small>興味類似度スコア: {item['sim']:.3f}</small></p>
         """
-        fe.description(description_html)
+
+        # リーダーアプリ対応：
+        # descriptionにはプレーンテキスト（一覧用）、contentにHTML（詳細用）をセットする
+        fe.description(summary) 
+        fe.content(description_html)
         
         # RSSの公開日時（pubDate）の引き継ぎ
         # feedparserの published_parsed を取得してdatetime型に変換
