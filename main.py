@@ -6,13 +6,15 @@ import google.generativeai as genai
 from feedgen.feed import FeedGenerator
 import pytz
 from datetime import datetime
+import time
+import re
 
 # --- 設定 ---
 # 取得元のRSS URL (例として日経やロイターなどを想定)
 SOURCE_RSS_URL = "https://assets.wor.jp/rss/rdf/nikkei/news.rdf" 
 
 # あなたの「興味関心」を定義するテキスト（これに似ていない記事を抽出します）
-INTEREST_TEXT = "IT技術、プログラミング、人工知能、金融市場、ガジェット"
+INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、デジタル、データ分析、音楽、芸術"
 
 # 類似度の閾値（-1.0 〜 1.0）。この数値以下の記事を「興味外」と判定する
 THRESHOLD = 0.35 
@@ -24,8 +26,8 @@ def main():
     articles = feed.entries[:15] # 処理時間を考慮し最新15件に制限
 
     print("2. ローカルAIモデルをロード中 (ベクトル化)...")
-    # 軽量で多言語対応のモデルを使用（APIを使用せずローカルで完結）
-    embedder = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+    # ローカル完結
+    embedder = SentenceTransformer('intfloat/multilingual-e5-small')
     interest_vector = embedder.encode([INTEREST_TEXT])
 
     target_articles = []
@@ -37,18 +39,17 @@ def main():
         text_to_embed = f"{entry.title} {summary}"
         
         article_vector = embedder.encode([text_to_embed])
-        # コサイン類似度の計算
+        # コサイン類似度
         sim = cosine_similarity(interest_vector, article_vector)[0][0]
         
         if sim < THRESHOLD:
             target_articles.append({'entry': entry, 'sim': sim, 'summary': summary})
             
-    print(f"-> {len(articles)}件中、{len(target_articles)}件を「興味外（要解説）」と判定しました。")
+    print(f"-> {len(articles)}件中、{len(target_articles)}件を「興味外（要解説）」と判定。")
 
-    print("4. Gemini APIによるテキスト再構築を実行中...")
+    print("4. Gemini API テキスト再構築中...")
     genai.configure(api_key=os.environ["API_KEY"])
-    # 無料枠で利用可能、かつ高速なflashモデルを指定
-    llm_model = genai.GenerativeModel('gemini-1.5-flash')
+    llm_model = genai.GenerativeModel('gemini-3.1-flash-lite')
     
     # 新規RSSフィードの初期化
     fg = FeedGenerator()
@@ -61,16 +62,15 @@ def main():
         entry = item['entry']
         summary = item['summary']
         
-        # 元のHTMLコンテンツの取得（フルコンテンツがあれば優先）
+        # 元のHTMLコンテンツ取得
         original_html = ''
         if hasattr(entry, 'content'):
             original_html = entry.content[0].value
         else:
             original_html = summary
         
-        # LLMへのプロンプト指示（大学生向け・用語解説）
         prompt = f"""
-        以下のニュースを、大学生が理解しやすい柔らかい表現に書き換えてください。
+        以下のニュースを「{INTEREST_TEXT}」といった概念や文脈に例えて、大学生向けに柔らかく書き換えてください。
         その際、専門用語には直後に括弧書きで簡潔な解説を補足してください。例：インフレ（=物価が継続的に上がる状態）
         HTMLタグは含めず、プレーンテキストで出力してください。
         
@@ -80,17 +80,23 @@ def main():
         try:
             response = llm_model.generate_content(prompt)
             ai_explanation = response.text
+            
+            # マークダウン除去
+            # AIが出力しがちな **太字** や *斜体* の記号を消し、箇条書きの * を ・ に変換
+            ai_explanation = re.sub(r'\*\*(.*?)\*\*', r'\1', ai_explanation)
+            ai_explanation = re.sub(r'\*(.*?)\*', r'\1', ai_explanation)
+            ai_explanation = ai_explanation.replace('* ', '・')
+
         except Exception as e:
-            ai_explanation = f"AI解説の生成に失敗しました: {e}"
+            ai_explanation = f"AI解説の生成に失敗: {e}"
 
         fe = fg.add_entry()
         fe.id(entry.link)
         fe.title(f"[AI解説] {entry.title}")
         fe.link(href=entry.link)
         
-        # AIのテキストと元のHTMLを結合
         description_html = f"""
-        <h3>AI書き換え本文</h3>
+        <h3>AI書換え本文</h3>
         <p>{ai_explanation.replace(chr(10), '<br>')}</p>
         <hr>
         <h3>元の記事</h3>
@@ -100,13 +106,30 @@ def main():
         """
         fe.description(description_html)
         
-        now = datetime.now(pytz.timezone('Asia/Tokyo'))
-        fe.pubDate(now)
+        # RSSの公開日時（pubDate）の引き継ぎ
+        # feedparserの published_parsed を取得してdatetime型に変換
+        if hasattr(entry, 'published_parsed') and entry.published_parsed:
+            # タイムゾーンを持たないUTCの日時を作成
+            dt = datetime(*entry.published_parsed[:6])
+            # UTCとして認識させた後、日本時間（JST）に変換
+            pub_date = pytz.utc.localize(dt).astimezone(pytz.timezone('Asia/Tokyo'))
+        else:
+            # 取得できない場合のみ現在時刻を使用
+            pub_date = datetime.now(pytz.timezone('Asia/Tokyo'))
+        
+        fe.pubDate(pub_date)
+
+        # APIのレートリミット対策
+        # RPM (1分あたりのリクエスト数): 15 回
+        # TPM (1分あたりのトークン数): 100万 トークン
+        # RPD (1日あたりのリクエスト数): 1,500 回
+        print(f"  - 処理完了: {entry.title[:15]}... (待機中)")
+        time.sleep(2)
 
     print("5. XMLファイルを生成中...")
     # 'rss.xml' として出力
     fg.rss_file('rss.xml')
-    print("完了: rss.xml が正常に生成されました。")
+    print("完了: rss.xml 正常に生成。")
 
 if __name__ == "__main__":
     main()
