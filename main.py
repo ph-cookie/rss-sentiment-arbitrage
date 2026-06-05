@@ -17,7 +17,7 @@ SOURCE_RSS_URL = "https://prtimes.jp/index.rdf"
 INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、デジタル、データ分析、音楽、芸術"
 
 # 類似度の閾値（-1.0 〜 1.0）。この数値以下の記事を「興味外」と判定する
-THRESHOLD = 0.80
+THRESHOLD = 0.35
 # -----------
 
 def main():
