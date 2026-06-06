@@ -11,51 +11,109 @@ import re
 
 # --- 設定 ---
 # 取得元のRSS URL
-SOURCE_RSS_URL = "https://prtimes.jp/index.rdf"
+SOURCE_RSS_URLS = [
+    "https://rss.itmedia.co.jp/rss/2.0/business.xml", # ITmedia ビジネスオンライン
+    "https://prtimes.jp/index.rdf",                   # PR TIMES
+    "https://assets.wor.jp/rss/rdf/nikkei/news.rdf"   # 日経新聞（テスト用）
+]
 
-# あなたの「興味関心」を定義するテキスト（これに似ていない記事を抽出します）
+# 有料記事・ログイン必須記事を示すキーワード群
+# 各メディアの癖に合わせて随時追加してください
+EXCLUDE_KEYWORDS = [
+    "有料会員限定", "会員限定", "ログイン", 
+    "この記事は有料", "続きは有料", "プレミアム", "🔒"
+]
+
+# 興味関心を定義（これに似ていない記事を抽出）
 INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、デジタル、データ分析、音楽、芸術"
 
-# 類似度の閾値（-1.0 〜 1.0）。この数値以下の記事を「興味外」と判定する
+# 類似度の閾値（-1.0 〜 1.0）。この数値以下の記事を「興味外」と判定
 THRESHOLD = 0.80
-# -----------
 
+# -----------
 def main():
-    print("1. RSSフィードを取得中...")
-    feed = feedparser.parse(SOURCE_RSS_URL)
-    articles = feed.entries[:15] # 処理時間を考慮し最新15件に制限
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    hf_token = os.environ.get("HF_TOKEN")
+    
+    if not gemini_key:
+        print("エラー: GEMINI_API_KEYが設定されていません")
+        sys.exit(1)
+    
+    if hf_token:
+        login(token=hf_token)
+    
+    print("1. 複数RSSフィードから無料記事を各5件ずつ取得中...")
+    free_articles = []
+    
+    for url in SOURCE_RSS_URLS:
+        try:
+            feed = feedparser.parse(url)
+            collected_count = 0
+            
+            # 取得した全記事を1件ずつチェック
+            for entry in feed.entries:
+                # すでにこのURLから5件の無料記事を取得していればループを抜けて次のURLへ
+                if collected_count >= 5:
+                    break
+                    
+                summary = getattr(entry, 'summary', getattr(entry, 'description', ''))
+                text_to_check = f"{entry.title} {summary}"
+                
+                # 除外キーワードが含まれているか判定
+                is_paid = any(keyword in text_to_check for keyword in EXCLUDE_KEYWORDS)
+                
+                # 無料記事であればリストに追加し、カウントを増やす
+                if not is_paid:
+                    free_articles.append(entry)
+                    collected_count += 1
+                    
+            print(f"  - 取得完了: {url} (無料記事: {collected_count}件)")
+                    
+        except Exception as e:
+            print(f"URL取得エラー ({url}): {e}")
+            
+    print(f"-> 全サイト合計で {len(free_articles)}件 の無料記事を抽出しました。")
 
     print("2. ローカルAIモデルをロード中 (ベクトル化)...")
     # token引数を追加し、環境変数からHF_TOKENを渡す
     hf_token = os.environ.get("HF_TOKEN")
-    embedder = SentenceTransformer('intfloat/multilingual-e5-small')
+    embedder = SentenceTransformer('intfloat/multilingual-e5-small', token=hf_token)
     interest_vector = embedder.encode(["query: " + INTEREST_TEXT])
-
+    
     target_articles = []
     
     print("3. 類似度計算とフィルタリングを実行中...")
-    for entry in articles:
+    scored_articles = []
+    for entry in free_articles:
         summary = getattr(entry, 'summary', getattr(entry, 'description', ''))
         text_to_embed = "passage: " + f"{entry.title} {summary}"
         
         article_vector = embedder.encode([text_to_embed])
         sim = cosine_similarity(interest_vector, article_vector)[0][0]
+        scored_articles.append({'entry': entry, 'sim': sim, 'summary': summary})
         
-        print(f"[{sim:.3f}] {entry.title}")
-        
-        if sim < THRESHOLD:
-            target_articles.append({'entry': entry, 'sim': sim, 'summary': summary})
-            
-    print(f"-> {len(articles)}件中、{len(target_articles)}件を「興味外（要解説）」と判定。")
+        print(f"[{sim:.3f}] {entry.title[:30]}...")
+
+    # 閾値以下の記事を抽出
+    target_articles = [item for item in scored_articles if item['sim'] < THRESHOLD]
+    is_fallback = False
+    
+    # 0件だった場合の強制抽出（相対的に類似度が低い上位3件を取得）
+    if len(target_articles) == 0 and len(scored_articles) > 0:
+        print("-> 閾値以下の記事が0件のため、類似度が低い上位3件を強制抽出します。")
+        scored_articles.sort(key=lambda x: x['sim'])
+        target_articles = scored_articles[:3]
+        is_fallback = True
+
+    print(f"-> 処理対象: {len(target_articles)}件")
 
     print("4. Gemini API テキスト再構築中...")
-    genai.configure(api_key=os.environ["API_KEY"])
-    llm_model = genai.GenerativeModel('gemini-3.1-flash-lite')
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+    llm_model = genai.GenerativeModel('gemini-1.5-flash')
     
-    # 新規RSSフィードの初期化
     fg = FeedGenerator()
     fg.title('AI再構築フィード (興味外ニュースの平易化)')
-    fg.link(href='https://github.com/', rel='alternate') # 公開後は自身のGitHub PagesのURLに変更
+    fg.link(href='https://github.com/', rel='alternate')
     fg.description('自身の興味領域外のニュースをAIがわかりやすく解説するカスタムフィード')
     fg.language('ja')
 
@@ -63,48 +121,45 @@ def main():
         entry = item['entry']
         summary = item['summary']
         
-        # 元のHTMLコンテンツ取得
         original_html = ''
         if hasattr(entry, 'content'):
             original_html = entry.content[0].value
         else:
             original_html = summary
+            if 'content' in entry and len(entry.content) > 0:
+            	original_html = entry.content[0].get('value', summary)        
+            
+        # フォールバック時の注記テキスト
+        fallback_notice = "※この記事は類似度閾値を満たしませんでしたが、出力確保のため抽出されました。" if is_fallback else ""
         
         prompt = f"""
         以下のニュースを「{INTEREST_TEXT}」といった概念や文脈に例えて、大学生向けに柔らかく書き換えてください。
         その際、専門用語には直後に括弧書きで簡潔な解説を補足してください。例：インフレ（=物価が継続的に上がる状態）
-        
-        【重要】
-        ・HTMLタグは含めない
-        ・太字（**）や斜体（*）などのMarkdown装飾は一切使用せず、完全なプレーンテキストで出力する
-        ・箇条書きをする場合は「*」ではなく「・」を使用する
+        HTMLタグは含めず、プレーンテキストで出力してください。
         
         対象テキスト: {summary}
         """
         
         try:
             response = llm_model.generate_content(prompt)
-            ai_explanation = response.text
-            
-            # マークダウン除去
-            # AIが出力しがちな **太字** や *斜体* の記号を消し、箇条書きの * を ・ に変換
-            ai_explanation = re.sub(r'\*\*(.*?)\*\*', r'\1', ai_explanation)
-            ai_explanation = re.sub(r'\*(.*?)\*', r'\1', ai_explanation)
-            ai_explanation = ai_explanation.replace('* ', '・')
-
+            if response.candidates and response.candidates[0].content.parts:
+                ai_explanation = response.text
+                ai_explanation = re.sub(r'\*\*(.*?)\*\*', r'\1', ai_explanation)
+                ai_explanation = re.sub(r'\*(.*?)\*', r'\1', ai_explanation)
+                ai_explanation = ai_explanation.replace('* ', '・')
+            else:
+                ai_explanation = "AIによる解説が生成されませんでした（フィルターブロック等の理由）。"
         except Exception as e:
-            ai_explanation = f"AI解説の生成に失敗: {e}"
+            ai_explanation = f"AI解説の生成エラー: {e}"
 
-        # URLのクリーンアップ（空白・改行・不要なフラグメントを除去）
         raw_link = entry.link.strip().split('#')[0]
         
         fe = fg.add_entry()
         fe.id(raw_link)
         fe.title(f"[AI解説] {entry.title}")
-        
-        # feedgenの仕様に合わせ、hrefを辞書型または直接指定で確実に渡す
         fe.link(href=raw_link)
         
+        # HTML内にフォールバック注記を挿入
         description_html = f"""
         <h3>AI書換え本文</h3>
         <p>{ai_explanation.replace(chr(10), '<br>')}</p>
@@ -112,24 +167,18 @@ def main():
         <h3>元の記事</h3>
         {original_html}
         <hr>
-        <p><small>興味類似度スコア: {item['sim']:.3f}</small></p>
+        <p><small>興味類似度スコア: {item['sim']:.3f}</small><br>
+        <small style="color:red;">{fallback_notice}</small></p>
         """
-
-        # リーダーアプリ対応：
-        # descriptionにはプレーンテキスト（一覧用）、contentにHTML（詳細用）をセットする
-        fe.description(summary) 
+        
+        fe.description(summary)
         fe.content(description_html)
         
-        # RSSの公開日時（pubDate）の引き継ぎ
-        # feedparserの published_parsed を取得してdatetime型に変換
         if hasattr(entry, 'published_parsed') and entry.published_parsed:
-            # タイムゾーンを持たないUTCの日時を作成
             dt = datetime(*entry.published_parsed[:6])
-            # UTCとして認識させた後、日本時間（JST）に変換
-            pub_date = pytz.utc.localize(dt).astimezone(pytz.timezone('Asia/Tokyo'))
+            pub_date = pytz.utc.localize(dt).astimezone(pytz.timezone('Asia/Tokyo')).isoformat()
         else:
-            # 取得できない場合のみ現在時刻を使用
-            pub_date = datetime.now(pytz.timezone('Asia/Tokyo'))
+            pub_date = datetime.now(pytz.timezone('Asia/Tokyo')).isoformat()
         
         fe.pubDate(pub_date)
 
@@ -141,9 +190,9 @@ def main():
         time.sleep(4) # 429防止
 
     print("5. XMLファイルを生成中...")
-    # 'rss.xml' として出力
     fg.rss_file('rss.xml')
     print("完了: rss.xml 正常に生成。")
+    
 
 if __name__ == "__main__":
     main()
