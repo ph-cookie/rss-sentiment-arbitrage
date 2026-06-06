@@ -129,7 +129,8 @@ def main():
         fallback_notice = "※この記事は類似度閾値を満たしませんでしたが、出力確保のため抽出されました。" if is_fallback else ""
         
         prompt = f"""
-        以下のニュースを「{INTEREST_TEXT}」といった概念や文脈に例えて、大学生向けに書き換えてください。
+        以下のニュースの内容を簡潔にまとめ、それが社会や読者に「どのような影響を与えるか」を中心にして、大学生向けにわかりやすく解説してください。
+        例え話は用いず、事実に基づいた客観的な影響を記述してください。
         HTMLタグは含めず、プレーンテキストで出力してください。
         
         対象テキスト: 
@@ -152,7 +153,7 @@ def main():
         
         fe = fg.add_entry()
         fe.id(raw_link)
-        fe.title(f"[AI解説] {entry.title}")
+        fe.title(f"{entry.title}")
         fe.link(href=raw_link)
         
         image_url = ""
