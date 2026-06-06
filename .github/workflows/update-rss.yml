@@ -10,8 +10,6 @@ on:
     - cron: '0 20,0,3,7,11 * * *'
   workflow_dispatch: # 手動実行用ボタンも有効化
 
-    - cron: '0 21,3,10 * * *'
-  workflow_dispatch: # 手動実行用ボタンも有効化
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
