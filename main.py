@@ -108,16 +108,25 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
 指示：
 - 【タイトル】と【解説】の見出しを必ず含めて出力すること。
 - タイトルは30文字以内で、記事の要点とインパクトが伝わるものにすること。
-- 文字数は400〜600文字程度とし、具体的な背景や要因を含めて記述すること。
+- 解説は以下の構成とし、各項目の前にHTMLの <h4> タグで見出しをつけること。
+  <h4>【概要】</h4> (事実の要約)
+  <h4>【背景・要因】</h4> (なぜ起きたか)
+  <h4>【社会・読者への影響】</h4> (どのような影響があるか)
+- 全体で400〜600文字程度とすること。
 - 例え話は用いず、事実に基づいた客観的な影響を記述すること。
-- Markdownの太字記号（**）は絶対に使用しないこと。
+- Markdownの太字記号（アスタリスク2つ）は絶対に使用せず、強調はHTMLの <strong> タグを用いること。
 
 出力フォーマット:
 【タイトル】
 (ここに新しいタイトル)
 
 【解説】
-(ここに解説本文)
+<h4>【概要】</h4>
+(概要本文)
+<h4>【背景・要因】</h4>
+(背景本文)
+<h4>【社会・読者への影響】</h4>
+(影響本文)
 
 対象テキスト:
 【{original_title}】 {summary}
@@ -197,11 +206,12 @@ def main():
         fallback_notice = "<p>※出力確保のための抽出記事</p>" if is_fallback else ""
         
         description_html = f"""
-        <p><small style="color:gray;">元のタイトル: {original_title} | 興味類似度スコア: {item['sim']:.3f}</small></p>
+        <p><small style=“color:gray;”>元のタイトル: {original_title}</small></p>
+        <p>興味類似度スコア: {item[‘sim’]:.3f}</p>
         {fallback_notice}
         {img_html}
         <h3>AI書換え本文</h3>
-        <p>{ai_explanation.replace(chr(10), '<br>')}</p>
+        <p>{ai_explanation.replace(chr(10), ‘<br>’)}</p>
         <hr>
         <h3>元の記事</h3>
         {original_html}
