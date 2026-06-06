@@ -102,7 +102,7 @@ def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransfo
     return target_articles, is_fallback
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
-def generate_ai_explanation(client: Any, title: str, summary: str) -> str:
+def generate_ai_explanation(client: Any, original_title: str, summary: str) -> dict:
     prompt = f"""
 以下のニュースの内容を詳細にまとめ、惹きつける分かりやすい「新しいタイトル」と、社会や読者に「どのような影響を与えるか」を中心に大学生向けに深く解説せよ。
 指示：
