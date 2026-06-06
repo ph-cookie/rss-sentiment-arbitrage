@@ -10,7 +10,6 @@ from google import genai
 from feedgen.feed import FeedGenerator
 import pytz
 from datetime import datetime
-from huggingface_hub import login
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -128,9 +127,6 @@ def main():
     if not gemini_key:
         logger.critical("API_KEY1 が設定されていない")
         sys.exit(1)
-        
-    if hf_token:
-        login(token=hf_token)
 
     logger.info("1. RSSフィードから記事取得")
     free_articles = fetch_free_articles(SOURCE_RSS_URLS)
