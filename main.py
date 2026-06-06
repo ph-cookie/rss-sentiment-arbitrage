@@ -55,6 +55,8 @@ def fetch_free_articles(urls: List[str], max_per_feed: int = 5) -> List[Any]:
     for url in urls:
         try:
             feed = feedparser.parse(url)
+            # フィードのタイトルを取得（取得できない場合はURL）
+            feed_title = getattr(feed.feed, 'title', url)
             collected = 0
             for entry in feed.entries:
                 if collected >= max_per_feed:
@@ -64,6 +66,8 @@ def fetch_free_articles(urls: List[str], max_per_feed: int = 5) -> List[Any]:
                 text_to_check = f"{title} {summary}"
                 
                 if not any(kw in text_to_check for kw in EXCLUDE_KEYWORDS):
+                    # entryオブジェクトにフィードタイトルを紐付け
+                    entry['feed_title'] = feed_title
                     free_articles.append(entry)
                     collected += 1
             logger.info(f"取得完了: {url} (無料記事: {collected}件)")
@@ -199,7 +203,7 @@ def main():
         
         fe = fg.add_entry()
         fe.id(raw_link)
-        fe.title(ai_title) # 生成された新しいタイトルを適用
+        fe.title(ai_title)
         fe.link(href=raw_link)
         
         img_html = f'<p><img src="{image_url}" style="max-width:100%; height:auto;" /></p>' if image_url else ""
@@ -207,18 +211,20 @@ def main():
         
         description_html = f"""
         <p><small style=“color:gray;”>元のタイトル: {original_title}</small></p>
-        <p>興味類似度スコア: {item[‘sim’]:.3f}</p>
+        <p><small style=“color:gray;”>興味類似度スコア: {item[‘sim’]:.3f}</small></p>
         {fallback_notice}
-        {img_html}
         <h3>AI書換え本文</h3>
-        <p>{ai_explanation.replace(chr(10), ‘<br>’)}</p>
+        {img_html}
+        <p>{ai_explanation.replace(chr(10), '<br>')}</p>
         <hr>
         <h3>元の記事</h3>
         {original_html}
         """
         
-        safe_summary = summary if summary.strip() else "概要なし"
-        fe.description(safe_summary)
+        feed_title = entry.get('feed_title', '不明なソース')
+        custom_summary = f"興味類似度: {item['sim']:.3f} | ソース: {feed_title}"
+        
+        fe.description(custom_summary)
         fe.content(content=description_html, type='html')
         
         pub_parsed = getattr(entry, 'published_parsed', None)
