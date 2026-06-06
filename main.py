@@ -104,10 +104,11 @@ def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransfo
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
 def generate_ai_explanation(client: Any, title: str, summary: str) -> str:
     prompt = f"""
-以下のニュースの内容を簡潔にまとめ、社会や読者に「どのような影響を与えるか」を中心に大学生向けに解説せよ。
+以下のニュースの内容を詳細にまとめ、社会や読者に「どのような影響を与えるか」を中心に大学生向けに深く解説せよ。
 指示：
+- 文字数は400〜600文字程度とし、具体的な背景や要因を含めて記述すること。
 - 例え話は用いず、事実に基づいた客観的な影響を記述すること。
-- HTMLタグやMarkdown装飾（太字、リスト記号など）は一切含めず、プレーンテキストのみで出力すること。
+- 重要なキーワードや結論部分はHTMLの <strong> タグを用いて太字で強調すること。
 
 対象テキスト:
 【{title}】 {summary}
