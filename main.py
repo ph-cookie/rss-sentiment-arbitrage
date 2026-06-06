@@ -223,8 +223,8 @@ def main():
         
         description_html = f"""
         <p style="color:gray; font-size: small;">
-        元タイトル: {original_title}<br>
-        興味類似度スコア: {item['sim']:.3f}
+        ・元タイトル「{original_title}」<br>
+        ・興味類似度スコア: {item['sim']:.3f}
         </p>
         {fallback_notice}
         <h3>AI書換え本文</h3>
@@ -236,7 +236,7 @@ def main():
         """
         
         feed_title = entry.get('feed_title', '不明なソース')
-        custom_summary = f"興味類似度: {item['sim']:.3f} | ソース: {feed_title}"
+        custom_summary = f"興味類似度: {item['sim']:.3f}　|　ソース: {feed_title}"
         
         fe.description(custom_summary)
         fe.content(content=description_html, type='html')
