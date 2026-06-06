@@ -65,11 +65,14 @@ def fetch_free_articles(urls: List[str], max_per_feed: int = 5) -> List[Any]:
                 title = getattr(entry, 'title', '')
                 text_to_check = f"{title} {summary}"
                 
-                if not any(kw in text_to_check for kw in EXCLUDE_KEYWORDS):
-                    # entryオブジェクトにフィードタイトルを紐付け
-                    entry['feed_title'] = feed_title
-                    free_articles.append(entry)
-                    collected += 1
+                excluded_kw = next((kw for kw in EXCLUDE_KEYWORDS if kw in text_to_check), None)
+                if excluded_kw:
+                    logger.info(f"除外 ({excluded_kw}): {title[:20]}...")
+                    continue
+                
+                entry['feed_title'] = feed_title
+                free_articles.append(entry)
+                collected += 1
             logger.info(f"取得完了: {url} (無料記事: {collected}件)")
         except Exception as e:
             logger.error(f"URL取得エラー ({url}): {e}")
@@ -209,9 +212,17 @@ def main():
         img_html = f'<p><img src="{image_url}" style="max-width:100%; height:auto;" /></p>' if image_url else ""
         fallback_notice = "<p>※出力確保のための抽出記事</p>" if is_fallback else ""
         
+        # 修正：余分な改行を整理し、<h4>タグ前後の不要な<br>を削除
+        ai_exp_clean = re.sub(r'\n{2,}', '\n', ai_explanation).strip()
+        ai_exp_html = ai_exp_clean.replace('\n', '<br>')
+        ai_exp_html = re.sub(r'<br>\s*<h4>', '<h4>', ai_exp_html)
+        ai_exp_html = re.sub(r'</h4>\s*<br>', '</h4>', ai_exp_html)
+        
         description_html = f"""
-        <p><small style=“color:gray;”>元のタイトル: {original_title}</small></p>
-        <p><small style=“color:gray;”>興味類似度スコア: {item['sim']:.3f}</small></p>
+        <p style="color:gray; font-size: small;">
+        元タイトル: {original_title}<br>
+        興味類似度スコア: {item['sim']:.3f}
+        </p>
         {fallback_notice}
         <h3>AI書換え本文</h3>
         {img_html}
