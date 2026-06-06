@@ -1,4 +1,7 @@
 import os
+import sys
+import time
+import re
 import feedparser
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -6,8 +9,7 @@ import google.generativeai as genai
 from feedgen.feed import FeedGenerator
 import pytz
 from datetime import datetime
-import time
-import re
+from huggingface_hub import login
 
 # --- 設定 ---
 # 取得元のRSS URL
@@ -18,7 +20,6 @@ SOURCE_RSS_URLS = [
 ]
 
 # 有料記事・ログイン必須記事を示すキーワード群
-# 各メディアの癖に合わせて随時追加してください
 EXCLUDE_KEYWORDS = [
     "有料会員限定", "会員限定", "ログイン", 
     "この記事は有料", "続きは有料", "プレミアム", "🔒"
@@ -32,13 +33,14 @@ THRESHOLD = 0.80
 
 # -----------
 def main():
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-    hf_token = os.environ.get("HF_TOKEN")
+    gemini_key = os.environ.get("API_KEY1")
+    hf_token = os.environ.get("HF_TOKEN1")
     
     if not gemini_key:
-        print("エラー: GEMINI_API_KEYが設定されていません")
+        print("エラー: API_KEY1 (Gemini APIキー) が設定されていません")
         sys.exit(1)
     
+    # Hugging Faceトークンがあればログイン
     if hf_token:
         login(token=hf_token)
     
@@ -50,9 +52,7 @@ def main():
             feed = feedparser.parse(url)
             collected_count = 0
             
-            # 取得した全記事を1件ずつチェック
             for entry in feed.entries:
-                # すでにこのURLから5件の無料記事を取得していればループを抜けて次のURLへ
                 if collected_count >= 5:
                     break
                     
@@ -62,7 +62,6 @@ def main():
                 # 除外キーワードが含まれているか判定
                 is_paid = any(keyword in text_to_check for keyword in EXCLUDE_KEYWORDS)
                 
-                # 無料記事であればリストに追加し、カウントを増やす
                 if not is_paid:
                     free_articles.append(entry)
                     collected_count += 1
@@ -75,8 +74,7 @@ def main():
     print(f"-> 全サイト合計で {len(free_articles)}件 の無料記事を抽出しました。")
 
     print("2. ローカルAIモデルをロード中 (ベクトル化)...")
-    # token引数を追加し、環境変数からHF_TOKENを渡す
-    hf_token = os.environ.get("HF_TOKEN")
+    # token引数を環境変数から渡す
     embedder = SentenceTransformer('intfloat/multilingual-e5-small', token=hf_token)
     interest_vector = embedder.encode(["query: " + INTEREST_TEXT])
     
@@ -108,8 +106,8 @@ def main():
     print(f"-> 処理対象: {len(target_articles)}件")
 
     print("4. Gemini API テキスト再構築中...")
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    llm_model = genai.GenerativeModel('gemini-1.5-flash')
+    genai.configure(api_key=gemini_key)
+    llm_model = genai.GenerativeModel('gemini-3.1-flash-lite') 
     
     fg = FeedGenerator()
     fg.title('AI再構築フィード (興味外ニュースの平易化)')
@@ -121,15 +119,12 @@ def main():
         entry = item['entry']
         summary = item['summary']
         
-        original_html = ''
-        if hasattr(entry, 'content'):
-            original_html = entry.content[0].value
+        # HTML抽出ロジックの簡略化
+        if hasattr(entry, 'content') and len(entry.content) > 0:
+            original_html = entry.content[0].get('value', summary)
         else:
             original_html = summary
-            if 'content' in entry and len(entry.content) > 0:
-            	original_html = entry.content[0].get('value', summary)        
             
-        # フォールバック時の注記テキスト
         fallback_notice = "※この記事は類似度閾値を満たしませんでしたが、出力確保のため抽出されました。" if is_fallback else ""
         
         prompt = f"""
@@ -159,7 +154,6 @@ def main():
         fe.title(f"[AI解説] {entry.title}")
         fe.link(href=raw_link)
         
-        # HTML内にフォールバック注記を挿入
         description_html = f"""
         <h3>AI書換え本文</h3>
         <p>{ai_explanation.replace(chr(10), '<br>')}</p>
@@ -182,17 +176,12 @@ def main():
         
         fe.pubDate(pub_date)
 
-        # APIのレートリミット対策
-        # RPM (1分あたりのリクエスト数): 15 回
-        # TPM (1分あたりのトークン数): 100万 トークン
-        # RPD (1日あたりのリクエスト数): 1,500 回
         print(f"  - 処理完了: {entry.title[:15]}... (待機中)")
         time.sleep(4) # 429防止
 
     print("5. XMLファイルを生成中...")
     fg.rss_file('rss.xml')
     print("完了: rss.xml 正常に生成。")
-    
 
 if __name__ == "__main__":
     main()

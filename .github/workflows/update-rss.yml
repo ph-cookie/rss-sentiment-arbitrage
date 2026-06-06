@@ -5,8 +5,9 @@ env:
 
 on:
   schedule:
-    # 毎日 日本時間 6:00 と 12:00 と 19:00 に実行 (UTC指定: 23:00, 19:00, 11:00) 
-    - cron: '0 11,19,23 * * *'
+    # 毎日 日本時間 6:00 と 12:00 と 19:00 に実行 (UTC指定: 21:00, 3:00, 10:00) 
+    # ※注: JST(UTC+9)に合わせるためcronの時間を修正しました
+    - cron: '0 21,3,10 * * *'
   workflow_dispatch: # 手動実行用ボタンも有効化
 
 jobs:
@@ -25,12 +26,21 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # ★ 追加: Hugging Faceモデルのキャッシュ ★
+      - name: Cache Hugging Face models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/hub
+          key: ${{ runner.os }}-hf-model-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-hf-model-
+
       - name: Run main script
         env:
-          API_KEY: ${{ secrets.API_KEY1 }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN1 }}
+          # ★ 修正: Python側の os.environ.get("...") と変数名を一致させました
+          API_KEY1: ${{ secrets.API_KEY1 }}
+          HF_TOKEN1: ${{ secrets.HF_TOKEN1 }}
         run: |
-          # huggingface-cli login --token $HF_TOKEN
           python main.py
 
       - name: Upload artifact for GitHub Pages
