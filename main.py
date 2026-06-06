@@ -26,7 +26,8 @@ def main():
     articles = feed.entries[:15] # 処理時間を考慮し最新15件に制限
 
     print("2. ローカルAIモデルをロード中 (ベクトル化)...")
-    # ローカル完結
+    # token引数を追加し、環境変数からHF_TOKENを渡す
+    hf_token = os.environ.get("HF_TOKEN")
     embedder = SentenceTransformer('intfloat/multilingual-e5-small')
     interest_vector = embedder.encode(["query: " + INTEREST_TEXT])
 
