@@ -32,7 +32,7 @@ SOURCE_RSS_URLS = [
 EXCLUDE_KEYWORDS = ["有料会員", "会員限定", "ログイン", "この記事は有料", "続きは有料", "プレミアム", "🔒"]
 INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、デジタル、データ分析、音楽、芸術"
 THRESHOLD = 0.821
-GEMINI_MODEL_NAME = 'gemini-1.5-flash'
+GEMINI_MODEL_NAME = 'gemini-3.1-flash-lite'
 
 def extract_image_url(entry: Any, original_html: str) -> str:
     links = getattr(entry, 'links', [])
@@ -104,7 +104,7 @@ def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransfo
     return target_articles, is_fallback
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
-def generate_ai_explanation(model: Any, title: str, summary: str) -> str:
+def generate_ai_explanation(client: Any, title: str, summary: str) -> str:
     prompt = f"""
 以下のニュースの内容を簡潔にまとめ、社会や読者に「どのような影響を与えるか」を中心に大学生向けに解説せよ。
 指示：
@@ -114,8 +114,11 @@ def generate_ai_explanation(model: Any, title: str, summary: str) -> str:
 対象テキスト:
 【{title}】 {summary}
     """
-    response = model.generate_content(prompt)
-    if response.parts:
+    response = client.models.generate_content(
+        model=GEMINI_MODEL_NAME,
+        contents=prompt
+    )
+    if response.text:
         return response.text.strip()
     return "AIによる解説が生成されませんでした（フィルタブロック等）。"
 
@@ -140,8 +143,7 @@ def main():
     logger.info(f"処理対象: {len(target_articles)}件")
 
     logger.info("3. AI再構築とフィード生成")
-    genai.configure(api_key=gemini_key)
-    llm_model = genai.GenerativeModel(GEMINI_MODEL_NAME)
+    client = genai.Client(api_key=gemini_key)
     
     fg = FeedGenerator()
     fg.title('AI再構築フィード (興味外ニュースの平易化)')
@@ -158,7 +160,7 @@ def main():
         original_html = content_obj[0].get('value', summary) if content_obj else summary
         
         try:
-            ai_explanation = generate_ai_explanation(llm_model, title, summary)
+            ai_explanation = generate_ai_explanation(client, title, summary)
         except Exception as e:
             logger.error(f"AI解説生成の最終エラー: {e}")
             ai_explanation = "解説の生成に失敗しました。"
@@ -185,7 +187,6 @@ def main():
         {original_html}
         """
         
-        # summaryが空っぽの場合のフォールバックを用意（リスト表示崩れ防止）
         safe_summary = summary if summary.strip() else "概要なし"
         fe.description(safe_summary)
         fe.content(content=description_html, type='html')
