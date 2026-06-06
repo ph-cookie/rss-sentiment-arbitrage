@@ -211,7 +211,7 @@ def main():
         
         description_html = f"""
         <p><small style=“color:gray;”>元のタイトル: {original_title}</small></p>
-        <p><small style=“color:gray;”>興味類似度スコア: {item[‘sim’]:.3f}</small></p>
+        <p><small style=“color:gray;”>興味類似度スコア: {item['sim']:.3f}</small></p>
         {fallback_notice}
         <h3>AI書換え本文</h3>
         {img_html}
