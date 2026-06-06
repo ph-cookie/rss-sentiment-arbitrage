@@ -6,14 +6,13 @@ from typing import List, Dict, Any
 import feedparser
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-import google.generativeai as genai
+from google import genai
 from feedgen.feed import FeedGenerator
 import pytz
 from datetime import datetime
 from huggingface_hub import login
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-# ロギング設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
