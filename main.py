@@ -10,6 +10,7 @@ from feedgen.feed import FeedGenerator
 import pytz
 from datetime import datetime
 from huggingface_hub import login
+from lxml import etree
 
 # --- 設定 ---
 # 取得元のRSS URL
@@ -21,7 +22,7 @@ SOURCE_RSS_URLS = [
 
 # 有料記事・ログイン必須記事を示すキーワード群
 EXCLUDE_KEYWORDS = [
-    "有料会員限定", "会員限定", "ログイン", 
+    "有料会員", "会員限定", "ログイン", 
     "この記事は有料", "続きは有料", "プレミアム", "🔒"
 ]
 
@@ -29,7 +30,7 @@ EXCLUDE_KEYWORDS = [
 INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、デジタル、データ分析、音楽、芸術"
 
 # 類似度の閾値（-1.0 〜 1.0）。この数値以下の記事を「興味外」と判定
-THRESHOLD = 0.80
+THRESHOLD = 0.83
 
 # -----------
 def main():
@@ -132,9 +133,10 @@ def main():
         その際、専門用語には直後に括弧書きで簡潔な解説を補足してください。例：インフレ（=物価が継続的に上がる状態）
         HTMLタグは含めず、プレーンテキストで出力してください。
         
-        対象テキスト: {summary}
-        """
-        
+        対象テキスト: 
+        【タイトル】{entry.title}
+        【本文】{summary}
+        """        
         try:
             response = llm_model.generate_content(prompt)
             if response.candidates and response.candidates[0].content.parts:
@@ -165,8 +167,12 @@ def main():
         <small style="color:red;">{fallback_notice}</small></p>
         """
         
-        fe.description(summary)
-        fe.content(description_html)
+        # summaryが空っぽの場合のフォールバックを用意（リスト表示崩れ防止）
+        safe_summary = summary if summary.strip() else "記事の概要が提供されていません。"
+        fe.description(safe_summary)
+        
+        # lxml.etree.CDATA を使ってHTMLを正しくラップする（HTMLレンダリング有効化）
+        fe.content(etree.CDATA(description_html))
         
         if hasattr(entry, 'published_parsed') and entry.published_parsed:
             dt = datetime(*entry.published_parsed[:6])
