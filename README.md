@@ -25,7 +25,7 @@
 
 * 言語: Python 3.10
 * ベクトル化: SentenceTransformers (Hugging Face)
-* LLM: Google Gemini API (gemini-1.5-flash)
+* LLM: Google Gemini API (gemini-3.1-flash-lite)
 * インフラ: GitHub Actions (定期実行), GitHub Pages (RSSホスティング)
 
 ## ファイル構成
@@ -40,7 +40,7 @@
 2. Google AI StudioでGemini APIキーを取得。
 3. Hugging FaceでAccess Token (Read)を取得。
 4. GitHubリポジトリの Settings > Secrets and variables > Actions にて以下を登録。
-* GEMINI_API_KEY: 取得したGeminiのAPIキー
+* API_KEY: 取得したGeminiのAPIキー
 * HF_TOKEN: 取得したHugging Faceのトークン
 
 
