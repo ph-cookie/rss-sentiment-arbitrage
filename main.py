@@ -15,9 +15,14 @@ from lxml import etree
 # --- 設定 ---
 # 取得元のRSS URL
 SOURCE_RSS_URLS = [
-    "https://rss.itmedia.co.jp/rss/2.0/business.xml", # ITmedia ビジネスオンライン
-    "https://prtimes.jp/index.rdf",                   # PR TIMES
-    "https://assets.wor.jp/rss/rdf/nikkei/news.rdf"   # 日経新聞（テスト用）
+    "https://rss.itmedia.co.jp/rss/2.0/business.xml",   # ITmedia ビジネスオンライン
+    "https://prtimes.jp/index.rdf",                     # PR TIMES
+    "https://assets.wor.jp/rss/rdf/nikkei/news.rdf",    # 日経新聞（テスト用）
+    "https://feeds.japan.cnet.com/rss/cnet/all.rdf",    # CNET Japan
+    "https://news.yahoo.co.jp/rss/topics/domestic.xml", # Yahoo 国内
+    "https://news.yahoo.co.jp/rss/topics/world.xml",    # Yahoo 国際
+    "https://news.yahoo.co.jp/rss/topics/business.xml", # Yahoo ビジネス
+    "https://feeds.bbci.co.uk/japanese/rss.xml"         # BBC 日本語版
 ]
 
 # 有料記事・ログイン必須記事を示すキーワード群
@@ -30,7 +35,7 @@ EXCLUDE_KEYWORDS = [
 INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、デジタル、データ分析、音楽、芸術"
 
 # 類似度の閾値（-1.0 〜 1.0）。この数値以下の記事を「興味外」と判定
-THRESHOLD = 0.83
+THRESHOLD = 0.821
 
 # -----------
 def main():
@@ -41,11 +46,10 @@ def main():
         print("エラー: API_KEY1 (Gemini APIキー) が設定されていません")
         sys.exit(1)
     
-    # Hugging Faceトークンがあればログイン
     if hf_token:
         login(token=hf_token)
     
-    print("1. 複数RSSフィードから無料記事を各5件ずつ取得中...")
+    print("1. 各RSSフィードから無料記事を各5件ずつ取得中...")
     free_articles = []
     
     for url in SOURCE_RSS_URLS:
@@ -72,7 +76,7 @@ def main():
         except Exception as e:
             print(f"URL取得エラー ({url}): {e}")
             
-    print(f"-> 全サイト合計で {len(free_articles)}件 の無料記事を抽出しました。")
+    print(f"-> 全サイト合計で {len(free_articles)}件 の無料記事を抽出。")
 
     print("2. ローカルAIモデルをロード中 (ベクトル化)...")
     # token引数を環境変数から渡す
@@ -99,14 +103,14 @@ def main():
     
     # 0件だった場合の強制抽出（相対的に類似度が低い上位3件を取得）
     if len(target_articles) == 0 and len(scored_articles) > 0:
-        print("-> 閾値以下の記事が0件のため、類似度が低い上位3件を強制抽出します。")
+        print("-> 閾値以下の記事が0件のため、類似度が低い上位3件を強制抽出する。")
         scored_articles.sort(key=lambda x: x['sim'])
         target_articles = scored_articles[:3]
         is_fallback = True
 
     print(f"-> 処理対象: {len(target_articles)}件")
 
-    print("4. Gemini API テキスト再構築中...")
+    print("4. テキスト再構築中...")
     genai.configure(api_key=gemini_key)
     llm_model = genai.GenerativeModel('gemini-3.1-flash-lite') 
     
