@@ -129,14 +129,13 @@ def main():
         fallback_notice = "※この記事は類似度閾値を満たしませんでしたが、出力確保のため抽出されました。" if is_fallback else ""
         
         prompt = f"""
-        以下のニュースを「{INTEREST_TEXT}」といった概念や文脈に例えて、大学生向けに柔らかく書き換えてください。
-        その際、専門用語には直後に括弧書きで簡潔な解説を補足してください。例：インフレ（=物価が継続的に上がる状態）
+        以下のニュースを「{INTEREST_TEXT}」といった概念や文脈に例えて、大学生向けに書き換えてください。
         HTMLタグは含めず、プレーンテキストで出力してください。
         
         対象テキスト: 
-        【タイトル】{entry.title}
-        【本文】{summary}
-        """        
+        【{entry.title}】 {summary}
+        """
+        
         try:
             response = llm_model.generate_content(prompt)
             if response.candidates and response.candidates[0].content.parts:
@@ -156,15 +155,36 @@ def main():
         fe.title(f"[AI解説] {entry.title}")
         fe.link(href=raw_link)
         
+        image_url = ""
+        if hasattr(entry, 'links'):
+            for link in entry.links:
+                if 'image' in link.get('type', ''):
+                    image_url = link.get('href', '')
+                    break
+        if not image_url and hasattr(entry, 'media_content') and len(entry.media_content) > 0:
+            image_url = entry.media_content[0].get('url', '')
+        if not image_url and hasattr(entry, 'media_thumbnail') and len(entry.media_thumbnail) > 0:
+            image_url = entry.media_thumbnail[0].get('url', '')
+        if not image_url and 'src=' in original_html:
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', original_html)
+            if img_match:
+                image_url = img_match.group(1)
+        
+        img_html = ""
+        if image_url:
+            fe.enclosure(image_url, 0, 'image/jpeg')
+            img_html = f'<p><img src="{image_url}" style="max-width:100%; height:auto;" /></p>'
+        
+        # 修正：興味度スコアをAI書き換え本文の前に配置
         description_html = f"""
+        <p><small style="color:gray;">興味類似度スコア: {item['sim']:.3f}</small></p>
+        {fallback_notice}
+        {img_html}
         <h3>AI書換え本文</h3>
         <p>{ai_explanation.replace(chr(10), '<br>')}</p>
         <hr>
         <h3>元の記事</h3>
         {original_html}
-        <hr>
-        <p><small>興味類似度スコア: {item['sim']:.3f}</small><br>
-        <small style="color:red;">{fallback_notice}</small></p>
         """
         
         # summaryが空っぽの場合のフォールバックを用意（リスト表示崩れ防止）
