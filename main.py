@@ -165,13 +165,16 @@ def main():
     if not gemini_key:
         logger.critical("API_KEY1 が設定されていない")
         sys.exit(1)
+        
+    if hf_token:
+        os.environ["HF_TOKEN"] = hf_token
 
     logger.info("1. RSSフィードから記事取得")
     free_articles = fetch_free_articles(SOURCE_RSS_URLS)
     logger.info(f"合計抽出数: {len(free_articles)}件")
 
     logger.info("2. モデルロードと類似度フィルタリング")
-    embedder = SentenceTransformer('intfloat/multilingual-e5-small', token=hf_token)
+    embedder = SentenceTransformer('intfloat/multilingual-e5-small')
     target_articles, is_fallback = filter_articles_by_similarity(free_articles, embedder, INTEREST_TEXT, THRESHOLD)
     logger.info(f"処理対象: {len(target_articles)}件")
 
@@ -212,11 +215,11 @@ def main():
         img_html = f'<p><img src="{image_url}" style="max-width:100%; height:auto;" /></p>' if image_url else ""
         fallback_notice = "<p>※出力確保のための抽出記事</p>" if is_fallback else ""
         
-        # 修正：余分な改行を整理し、<h4>タグ前後の不要な<br>を削除
         ai_exp_clean = re.sub(r'\n{2,}', '\n', ai_explanation).strip()
         ai_exp_html = ai_exp_clean.replace('\n', '<br>')
         ai_exp_html = re.sub(r'<br>\s*<h4>', '<h4>', ai_exp_html)
         ai_exp_html = re.sub(r'</h4>\s*<br>', '</h4>', ai_exp_html)
+        ai_exp_html = ai_exp_html.replace('<h4>', '<h4 style="margin: 0.5em 0 0.2em 0;">')
         
         description_html = f"""
         <p style="color:gray; font-size: small;">
