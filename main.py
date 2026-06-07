@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import json
 import logging
 from typing import List, Dict, Any
 import feedparser
@@ -32,6 +33,35 @@ INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェッ�
 THRESHOLD = 0.821
 GEMINI_MODEL_NAME = 'gemini-3.1-flash-lite'
 
+# キャッシュ設定
+CACHE_FILE = "processed_urls.json"
+MAX_CACHE_SIZE = 150 # 保持する過去のURLの最大件数
+
+def load_cache() -> List[str]:
+    """過去に処理したURLリストを読み込む"""
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                urls = json.load(f)
+                logger.info(f"キャッシュ読込成功（既読URL: {len(urls)}件）")
+                return urls
+        except Exception as e:
+            logger.warning(f"キャッシュの読み込みに失敗しました: {e}")
+    else:
+        logger.info("初回実行、またはキャッシュが存在しません。")
+    return []
+
+def save_cache(seen_urls: List[str]):
+    """処理したURLリストを保存する（上限を設けてスライス）"""
+    try:
+        # 古いものを捨て、最新のMAX_CACHE_SIZE件だけ残す
+        limited_urls = seen_urls[-MAX_CACHE_SIZE:]
+        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(limited_urls, f, ensure_ascii=False, indent=2)
+        logger.info(f"キャッシュ保存成功（保持件数: {len(limited_urls)}件）")
+    except Exception as e:
+        logger.error(f"キャッシュの保存に失敗しました: {e}")
+
 def extract_image_url(entry: Any, original_html: str) -> str:
     links = getattr(entry, 'links', [])
     image_url = next((link.get('href') for link in links if 'image' in link.get('type', '')), '')
@@ -50,7 +80,7 @@ def extract_image_url(entry: Any, original_html: str) -> str:
             
     return image_url
 
-def fetch_free_articles(urls: List[str], max_per_feed: int = 5) -> List[Any]:
+def fetch_free_articles(urls: List[str], seen_links: List[str], max_per_feed: int = 5) -> List[Any]:
     free_articles = []
     for url in urls:
         try:
@@ -58,9 +88,18 @@ def fetch_free_articles(urls: List[str], max_per_feed: int = 5) -> List[Any]:
             feed_title = getattr(feed.feed, 'title', url)
             collected = 0
             excluded_count = 0
+            skipped_count = 0 # 既読スキップのカウント
+            
             for entry in feed.entries:
                 if collected >= max_per_feed:
                     break
+                    
+                # 既読（キャッシュ済み）のURLはスキップ
+                raw_link = getattr(entry, 'link', '').strip().split('#')[0]
+                if raw_link in seen_links:
+                    skipped_count += 1
+                    continue
+                    
                 summary = getattr(entry, 'summary', getattr(entry, 'description', ''))
                 title = getattr(entry, 'title', '')
                 text_to_check = f"{title} {summary}"
@@ -75,12 +114,10 @@ def fetch_free_articles(urls: List[str], max_per_feed: int = 5) -> List[Any]:
                 free_articles.append(entry)
                 collected += 1
                 
-            if excluded_count == 0:
-                logger.info(f"除外記事なし: {url}")
+            if excluded_count == 0 and skipped_count == 0 and collected == 0:
+                logger.info(f"処理対象記事なし: {url}")
             else:
-                logger.info(f"除外合計: {excluded_count}件 ({url})")
-                
-            logger.info(f"取得完了: {url} (無料記事: {collected}件)")
+                logger.info(f"取得完了: {url} (新規: {collected}件 / 除外: {excluded_count}件 / 既読スキップ: {skipped_count}件)")
         except Exception as e:
             logger.error(f"URL取得エラー ({url}): {e}")
     return free_articles
@@ -179,9 +216,12 @@ def main():
     if hf_token:
         os.environ["HF_TOKEN"] = hf_token
 
+    logger.info("0. 処理済みURLキャッシュの読み込み")
+    seen_links = load_cache()
+
     logger.info("1. RSSフィードから記事取得")
-    free_articles = fetch_free_articles(SOURCE_RSS_URLS)
-    logger.info(f"合計抽出数: {len(free_articles)}件")
+    free_articles = fetch_free_articles(SOURCE_RSS_URLS, seen_links)
+    logger.info(f"合計新規抽出数: {len(free_articles)}件")
 
     logger.info("2. モデルロードと類似度フィルタリング")
     embedder = SentenceTransformer('intfloat/multilingual-e5-small')
@@ -260,7 +300,14 @@ def main():
         if image_url:
             fe.enclosure(image_url, 0, 'image/jpeg')
 
+        # 正常に処理した記事のURLをキャッシュリストに追加
+        if raw_link not in seen_links:
+            seen_links.append(raw_link)
+
         logger.info(f"処理完了: {ai_title[:15]}...")
+
+    # キャッシュをJSONファイルに保存（次のActions実行へ引き継ぐ）
+    save_cache(seen_links)
 
     fg.rss_file('rss.xml')
     logger.info("rss.xml 生成完了")
