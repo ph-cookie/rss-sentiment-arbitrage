@@ -55,9 +55,9 @@ def fetch_free_articles(urls: List[str], max_per_feed: int = 5) -> List[Any]:
     for url in urls:
         try:
             feed = feedparser.parse(url)
-            # フィードのタイトルを取得（取得できない場合はURL）
             feed_title = getattr(feed.feed, 'title', url)
             collected = 0
+            excluded_count = 0
             for entry in feed.entries:
                 if collected >= max_per_feed:
                     break
@@ -68,11 +68,18 @@ def fetch_free_articles(urls: List[str], max_per_feed: int = 5) -> List[Any]:
                 excluded_kw = next((kw for kw in EXCLUDE_KEYWORDS if kw in text_to_check), None)
                 if excluded_kw:
                     logger.info(f"除外 ({excluded_kw}): {title[:20]}...")
+                    excluded_count += 1
                     continue
                 
                 entry['feed_title'] = feed_title
                 free_articles.append(entry)
                 collected += 1
+                
+            if excluded_count == 0:
+                logger.info(f"除外記事なし: {url}")
+            else:
+                logger.info(f"除外合計: {excluded_count}件 ({url})")
+                
             logger.info(f"取得完了: {url} (無料記事: {collected}件)")
         except Exception as e:
             logger.error(f"URL取得エラー ({url}): {e}")
@@ -115,10 +122,13 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
 指示：
 - 【タイトル】と【解説】の見出しを必ず含めて出力すること。
 - タイトルは30文字以内で、記事の要点とインパクトが伝わるものにすること。
-- 解説は以下の構成とし、各項目の前にHTMLの <h4> タグで見出しをつけること。
-  <h4>【概要】</h4> (事実の要約)
-  <h4>【背景・要因】</h4> (なぜ起きたか)
-  <h4>【社会・読者への影響】</h4> (どのような影響があるか)
+- 解説は以下の構成とし、見出しは【】のみで記述すること（HTMLタグ不要）。
+  【概要】
+  (事実の要約)
+  【背景・要因】
+  (なぜ起きたか)
+  【社会・読者への影響】
+  (どのような影響があるか)
 - 全体で400〜600文字程度とすること。
 - 例え話は用いず、事実に基づいた客観的な影響を記述すること。
 - Markdownの太字記号（アスタリスク2つ）は絶対に使用せず、強調はHTMLの <strong> タグを用いること。
@@ -128,11 +138,11 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
 (ここに新しいタイトル)
 
 【解説】
-<h4>【概要】</h4>
+【概要】
 (概要本文)
-<h4>【背景・要因】</h4>
+【背景・要因】
 (背景本文)
-<h4>【社会・読者への影響】</h4>
+【社会・読者への影響】
 (影響本文)
 
 対象テキスト:
@@ -217,9 +227,6 @@ def main():
         
         ai_exp_clean = re.sub(r'\n{2,}', '\n', ai_explanation).strip()
         ai_exp_html = ai_exp_clean.replace('\n', '<br>')
-        ai_exp_html = re.sub(r'<br>\s*<h4>', '<h4>', ai_exp_html)
-        ai_exp_html = re.sub(r'</h4>\s*<br>', '</h4>', ai_exp_html)
-        ai_exp_html = ai_exp_html.replace('<h4>', '<h4 style="margin: 0.5em 0 0.2em 0;">')
         
         description_html = f"""
         <p style="color:gray; font-size: small;">
@@ -229,12 +236,12 @@ def main():
         {fallback_notice}
         <h3>AI書換え本文</h3>
         {img_html}
-        <p>{ai_explanation.replace(chr(10), '<br>')}</p>
+        <p>{ai_exp_html}</p>
         <hr>
         <h3>元の記事</h3>
         {original_html}
         """
-        
+                
         feed_title = entry.get('feed_title', '不明なソース')
         custom_summary = f"興味類似度: {item['sim']:.3f}　|　ソース: {feed_title}"
         
