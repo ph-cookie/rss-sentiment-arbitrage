@@ -9,41 +9,36 @@
 
 ## 2. システムフロー
 
+<details>
+<summary><strong>システムフロー図の詳細を見る（クリックで展開）</strong></summary>
+
 ```mermaid
-graph LR
-    %% スタイリング（見やすさのための微調整）
-    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
-    classDef highlight fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-
-    subgraph "Phase 1: 収集とフィルタリング"
-        A([GitHub Actions<br>定期実行]) --> B[(キャッシュ読込<br>既読URL/前回記事)]
-        B --> C[複数RSS<br>パース]
-        C --> D{既読 or<br>有料?}
-        D -- Yes --> E[スキップ]
-        D -- No --> F[新規・無料記事<br>蓄積]
-    end
-
-    subgraph "Phase 2: ベクトル化と抽出"
-        F --> G{新規記事<br>あり?}
-        G -- Yes --> H[SentenceTransformer<br>一括ベクトル化]
-        H --> I{興味類似度<br>< THRESH}
-        I -- 対象あり --> J[関心外ニュース<br>抽出]
-        I -- 0件 --> J2[下位3件を<br>強制抽出]
-    end
-
-    subgraph "Phase 3: 記事生成と配信"
-        J & J2 --> L[Gemini 3 Flash<br>構造化生成/リライト]
-        L -. API制限時は<br>自動再試行 .-> M[MIME動的判定<br>余白最適化]
-        
-        %% 新規がない場合のバイパスルート
-        G -- No ----> K
-        
-        M --> K[新規記事 ＋<br>前回記事を結合]
-        K --> N[(キャッシュ保存<br>URL/今回記事)]
-        N --> O[feedgen<br>RSS生成]
-        O --> P([GitHub Pages<br>自動デプロイ]):::highlight
-    end
+graph TD
+    A[GitHub Actions 定期実行] --> B[キャッシュ読込: 既読URL & 前回生成記事]
+    B --> C[複数RSSフィードのパース]
+    C --> D{既読URL or 有料会員限定か}
+    D -- Yes --> E[スキップ / 除外ログ出力]
+    D -- No --> F[新規・無料記事の蓄積]
+    
+    F --> G{新規記事あり?}
+    G -- No --> K
+    G -- Yes --> H[SentenceTransformerによる一括ベクトル化]
+    
+    H --> I{興味類似度 < THRESHOLD}
+    I -- 対象あり --> J[関心外ニュースの抽出]
+    I -- 0件 --> J2[類似度下位3件を強制抽出]
+    
+    J --> L[Gemini 3 Flash による構造化生成 & タイトルリライト]
+    J2 --> L
+    L -- "API制限等: tenacityで自動再試行" --> M[MIME動的判定 / 余白最適化]
+    
+    M --> K[今回の新規記事 ＋ 前回の記事 を結合]
+    K --> N[キャッシュ保存: 最新の既読URL & 今回生成した記事]
+    N --> O[feedgenによるカスタムRSSファイル生成]
+    O --> P[GitHub Pages への自動デプロイ]
 ```
+
+</details>
 
 ## 3. 主な機能
 
