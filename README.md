@@ -21,8 +21,8 @@ graph TD
     D -- No --> F[新規・無料記事の蓄積]
     
     F --> G{新規記事あり?}
-    G -- No --> K
     G -- Yes --> H[SentenceTransformerによる一括ベクトル化]
+    G -- No ---> K
     
     H --> I{興味類似度 < THRESHOLD}
     I -- 対象あり --> J[関心外ニュースの抽出]
