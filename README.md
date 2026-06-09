@@ -125,6 +125,10 @@ GitHub Actionsの実行が正常に完了すると、GitHub Pages環境へ自動
 
 https://[GitHubユーザー名].github.io/[リポジトリ名]/rss.xml
 
+<<<<<<< HEAD
 ## 7. LICENSE
+=======
+## LICENSE
+>>>>>>> ef6613df102318655ca437bc6af3eeec42d0a3f5
 
 MIT
