@@ -1,16 +1,24 @@
 # rss-sentiment-arbitrage
 
+[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
+[![Build Status](https://github.com/ph-cookie/rss-sentiment-arbitrage/actions/workflows/update-rss.yml/badge.svg)](https://github.com/ph-cookie/rss-sentiment-arbitrage/actions)
+[![GitHub Pages](https://img.shields.io/badge/Hosted_on-GitHub_Pages-brightgreen.svg)](https://ph-cookie.github.io/rss-sentiment-arbitrage/)
+[![Gemini API](https://img.shields.io/badge/Powered_by-Gemini_3_Flash-orange.svg)](https://aistudio.google.com/)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97_Hugging_Face-multilingual--e5--small-yellow.svg)](https://huggingface.co/intfloat/multilingual-e5-small)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 指定したニュースメディアのRSSから、ユーザーの**関心領域外（フィルターバブル外）のニュース**を自動抽出し、Gemini APIを用いて大学生向けに構造化・平易化したカスタムRSSフィードを生成・配信するシステム。
 
-## 1. システム概要
+## 1 システム概要
 
 現代の情報収集におけるフィルターバブル（推薦アルゴリズムによる関心の偏り）を打破するための、逆フィルタリング型ニュース配信システム。
-事前定義した関心テキストと各記事のコサイン類似度を計算し、類似度が低い（関心外である）記事のみを抽出。LLMを用いて、興味を惹かれるタイトルへのリライト、および構造化された詳細な解説（概要、背景・要因、社会・読者への影響）を自動生成し、GitHub Pages経由で新たなRSSフィード（XML）として配信する。
+
+事前定義した関心テキストと各記事のコサイン類似度を計算し、類似度が低い（関心外である）記事のみを抽出。LLMを用いて、興味を惹かれるタイトルへのリライト、構造化された解説を自動生成し、GitHub Pages経由で新たなRSSフィード（XML）として配信する。
 
 ## 2. システムフロー
 
 <details>
-<summary><strong>システムフロー図の詳細を見る（クリックで展開）</strong></summary>
+<summary><strong>システムフロー図を見る（クリックで展開）</strong></summary>
 
 ```mermaid
 graph TD
@@ -21,8 +29,8 @@ graph TD
     D -- No --> F[新規・無料記事の蓄積]
     
     F --> G{新規記事あり?}
-    G -- Yes --> H[SentenceTransformerによる一括ベクトル化]
     G -- No ---> K
+    G -- Yes --> H[SentenceTransformerによる一括ベクトル化]
     
     H --> I{興味類似度 < THRESHOLD}
     I -- 対象あり --> J[関心外ニュースの抽出]
@@ -42,13 +50,26 @@ graph TD
 
 ## 3. 主な機能
 
-* ローカルキャッシュと履歴の2世代保持: actions/cache を利用し、処理済みURLのリスト（最大150件）と「前回実行時に生成した記事データ」をJSONとして保持。APIの無駄な再実行（重複処理）を防ぎつつ、RSSフィードには「今回＋前回」の2世代分の記事が出力され、記事の読み逃しを防止する。
-* バッチベクトル化と逆フィルタリング: SentenceTransformer (multilingual-e5-small) を用い、蓄積した全記事のベクトル計算を一括実行。設定した閾値以下の「関心外」ニュースのみを高効率に抽出。
-* フォールバック抽出: 閾値未満の記事が0件の場合、相対的に類似度が低い下位3件を強制抽出し、フィードの出力を保証。
-* AIタイトルリライト & 構造化平易化: gemini-3-flash を用い、大学生の興味を惹く30文字以内のタイトルへ刷新。本文を「概要」「背景・要因」「社会・読者への影響」の3項目に構造化し、400〜600文字で深掘り解説。
-* 堅牢なエラーハンドリング: tenacity による指数的バックオフをLLM生成部に実装。APIのレートリミット（429エラー）発生時も最大5回まで自動再試行。
-* 運用監視ログの強化: 有料記事の除外理由（ヒットしたキーワード）やフィードごとの処理件数を詳細に構造化ログ出力。
-* RSS表示の最適化: 各記事の概要欄（description）に元のソースサイト名と類似度スコアを明記。「概要なし」によるリーダー側の表示崩れを防止し、インラインCSSによる余白調整、画像の埋め込み（enclosure対応）を最適化。
+* キャッシュと履歴の二世代保持  
+  actions/cache を利用し、処理済みURL（最大150件）と前回生成記事データをJSONで保存。重複処理を防ぎつつ、RSSには「今回＋前回」の二世代分の記事を出力し、読み逃しを防止。
+
+* 記事抽出の効率化  
+  SentenceTransformer (multilingual-e5-small) により全記事を一括ベクトル化。設定閾値以下の「関心外」ニュースのみを効率的に抽出。
+
+* フォールバック抽出  
+  閾値未満の記事が0件の場合は、類似度が低い下位3件を強制抽出してフィード出力を保証。
+
+* AIによるタイトル・本文最適化  
+  LLM で30文字以内の魅力的なタイトルにリライト。本文は「概要」「背景・要因」「社会・読者への影響」の3項目に構造化し解説。
+
+* 堅牢なエラーハンドリング  
+  tenacity を用いた指数的バックオフをLLM生成に実装。429エラーにも最大5回まで自動再試行。
+
+* 運用監視ログの強化  
+  有料記事除外の理由や処理件数を詳細に構造化してログ出力。
+
+* RSS表示の最適化  
+  記事概要に元ソース名と類似度スコアを明記。概要なしによる表示崩れ防止や、enclosure対応での画像埋め込みを最適化。
 
 ## 4. テクニカルスタック
 
@@ -64,7 +85,7 @@ graph TD
 
 * main.py: RSS取得、一括ベクトル化、LLM生成、XML出力までの全パイプラインを管理するメインスクリプト
 * requirements.txt: 2026年現在の最新安定版パッケージ定義
-* .github/workflows/generate-rss.yml: 毎日指定時刻（日本時間 6:00, 12:00, 19:00）に動作する実行定義ファイル
+* .github/workflows/generate-rss.yml: 毎日指定時刻に動作する実行定義ファイル
 
 ## 6. セットアップ手順
 
