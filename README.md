@@ -124,3 +124,7 @@ GitHub Actionsの実行が正常に完了すると、GitHub Pages環境へ自動
 生成された以下のURLを、FeedlyやNetNewsWireなどの任意のRSSリーダーアプリに登録して購読する。
 
 https://[GitHubユーザー名].github.io/[リポジトリ名]/rss.xml
+
+## 7. LICENSE
+
+MIT
