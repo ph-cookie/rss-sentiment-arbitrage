@@ -28,7 +28,7 @@ graph TD
     I -- 対象あり --> J[関心外ニュースの抽出]
     I -- 0件 --> J2[類似度下位3件を強制抽出]
     
-    J --> L[Gemini 3 Flash による構造化生成 & タイトルリライト]
+    J --> L[LLMによる構造化生成 & タイトルリライト]
     J2 --> L
     L -- "API制限等: tenacityで自動再試行" --> M[MIME動的判定 / 余白最適化]
     
@@ -54,7 +54,7 @@ graph TD
 
 * 言語: Python 3.10
 * LLM SDK: google-genai (最新仕様)
-* 生成モデル: gemini-3-flash
+* 生成モデル: gemini-3.1-flash-lite
 * 埋め込みモデル: sentence-transformers (intfloat/multilingual-e5-small)
 * リトライ制御: tenacity
 * RSS生成: feedgen
@@ -93,9 +93,9 @@ GitHubリポジトリの Settings > Pages にて、Build and deployment の Sour
 main.py 内の以下の定数を、自身の情報収集目的に応じて変更する。
 
 * SOURCE_RSS_URLS: 取得対象とするニュースメディアのRSS URLリスト
-* EXCLUDE_KEYWORDS: 有料記事などを弾くための除外キーワード群
 * INTEREST_TEXT: 自身の現在の興味（これと離れた記事が抽出される）
 * THRESHOLD: 類似度の閾値（デフォルト: 0.821）
+* EXCLUDE_KEYWORDS: 有料記事などを弾くための除外キーワード群
 
 ## 7. 利用方法
 
