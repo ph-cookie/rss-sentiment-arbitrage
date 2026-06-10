@@ -2,7 +2,7 @@
 
 [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 [![Build Status](https://github.com/ph-cookie/rss-sentiment-arbitrage/actions/workflows/update-rss.yml/badge.svg)](https://github.com/ph-cookie/rss-sentiment-arbitrage/actions)
-[![GitHub Pages](https://img.shields.io/badge/Hosted_on-GitHub_Pages-brightgreen.svg)](ph-cookie.github.io/rss-sentiment-arbitrage/)
+[![GitHub Pages](https://img.shields.io/badge/Hosted_on-GitHub_Pages-brightgreen.svg)](https://ph-cookie.github.io/rss-sentiment-arbitrage/)
 [![Gemini API](https://img.shields.io/badge/Powered_by-Gemini_3.1_Flash_Lite-orange.svg)](https://aistudio.google.com/)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97_Hugging_Face-multilingual--e5--small-yellow.svg)](https://huggingface.co/intfloat/multilingual-e5-small)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
