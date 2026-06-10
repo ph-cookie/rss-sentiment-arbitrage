@@ -361,6 +361,40 @@ def main():
         try:
             fg.rss_file('rss.xml')
             logger.info(f"rss.xml 生成完了 (出力件数: {len(all_feed_articles)}件)")
+            # index.html の自動生成
+            html_content = f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI再構築フィード</title>
+    <style>
+        body {{ font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 2rem; color: #333; }}
+        h1 {{ border-bottom: 2px solid #333; padding-bottom: 0.5rem; }}
+        .rss-link {{ display: inline-block; background: #ee802f; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 1rem; }}
+        .rss-link:hover {{ background: #c66a26; }}
+    </style>
+</head>
+<body>
+    <h1>AI再構築フィード (興味外ニュースの平易化)</h1>
+    <p>このページは、自動生成されたカスタムRSSフィードのホスティングサイトです。</p>
+    <p>フィルターバブルを打破するため、ユーザーの関心領域外のニュースをAI（Gemini）が大学生向けに平易化・構造化して配信しています。</p>
+    <p>最終更新: {datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S')} (JST)</p>
+    
+    <h2>購読方法</h2>
+    <p>お使いのRSSリーダー（Feedly, Inoreaderなど）に以下のリンクを登録してください。</p>
+    <a href="rss.xml" class="rss-link">RSSフィード (rss.xml) を取得</a>
+    
+    <p style="margin-top: 3rem; font-size: 0.8rem; color: #666;">
+        Powered by GitHub Actions & Gemini API<br>
+        <a href="https://github.com/ph-cookie/rss-sentiment-arbitrage">GitHub Repository</a>
+    </p>
+</body>
+</html>
+"""
+            with open('index.html', 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            logger.info("index.html 生成完了")
         except Exception as e:
             logger.error(f"XMLファイルの書き出しに失敗しました: {e}")
             raise
