@@ -381,7 +381,7 @@ def main():
     <p>フィルターバブルを打破するため、ユーザーの関心領域外のニュースをAI（Gemini）が大学生向けに平易化・構造化して配信しています。</p>
     <p>最終更新: {datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S')} (JST)</p>
     
-    <h2>購読方法</h2>
+    <h2>利用方法</h2>
     <p>お使いのRSSリーダー（Feedly, Inoreaderなど）に以下のリンクを登録してください。</p>
     <a href="rss.xml" class="rss-link">RSSフィード (rss.xml) を取得</a>
     
