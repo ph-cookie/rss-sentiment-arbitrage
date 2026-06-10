@@ -1,4 +1,4 @@
-import os
+mport os
 import sys
 import re
 import json
@@ -30,14 +30,20 @@ SOURCE_RSS_URLS = [
     "https://feeds.bbci.co.uk/japanese/rss.xml"         # BBC 日本語版
 ]
 
-INTEREST_TEXT = "IT技術、プログラミング、人工知能、ガジェット、情報、デジタル、データ分析、音楽、芸術、旅、自然"
 EXCLUDE_KEYWORDS = ["有料会員", "会員限定", "ログイン", "この記事は有料", "続きは有料", "プレミアム", "🔒"]
+INTEREST_TEXTS = [
+    "IT技術、プログラミング、人工知能、データ分析",
+    "ガジェット、情報、デジタル",
+    "音楽、芸術、ゲーム、推し活",
+    "旅、自然"
+]
+
 THRESHOLD = 0.821
 GEMINI_MODEL_NAME = 'gemini-3.1-flash-lite'
 
 # キャッシュ設定
 CACHE_FILE = "processed_urls.json"
-MAX_CACHE_SIZE = 200 # 保持する過去のURLの最大件数
+MAX_CACHE_SIZE = 500 # 保持する過去のURLの最大件数
 
 def get_mime_type(url: str) -> str:
     """URLからMIMEタイプを推測する（クエリパラメータを無視）"""
@@ -140,23 +146,29 @@ def fetch_free_articles(urls: List[str], seen_links: List[str], max_per_feed: in
             logger.error(f"URL取得エラー ({url}): {e}")
     return free_articles
 
-def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransformer, interest_text: str, threshold: float) -> tuple[List[Dict], bool]:
+def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransformer, interest_texts: List[str], threshold: float) -> tuple[List[Dict], bool]:
     if not articles:
         return [], False
 
     try:
-        interest_vector = embedder.encode([f"query: {interest_text}"])
+        # 複数の興味関心ベクトルを一括生成
+        interest_queries = [f"query: {text}" for text in interest_texts]
+        interest_vectors = embedder.encode(interest_queries)
+        
         texts_to_embed = [f"passage: {getattr(entry, 'title', '')} {getattr(entry, 'summary', getattr(entry, 'description', ''))}" for entry in articles]
             
-        logger.info("ベクトル化を一括実行中...")
+        logger.info(f"ベクトル化を一括実行中... (記事: {len(articles)}件, 興味クラスタ: {len(interest_texts)}件)")
         article_vectors = embedder.encode(texts_to_embed)
         
         scored_articles = []
         for idx, entry in enumerate(articles):
-            sim = cosine_similarity(interest_vector, [article_vectors[idx]])[0][0]
+            # 各記事に対して、全ての興味クラスタとの類似度を計算し、その最大値を取得
+            sims = cosine_similarity([article_vectors[idx]], interest_vectors)[0]
+            max_sim = float(max(sims))
+            
             scored_articles.append({
                 'entry': entry,
-                'sim': float(sim),
+                'sim': max_sim,
                 'summary': getattr(entry, 'summary', getattr(entry, 'description', ''))
             })
 
@@ -171,7 +183,7 @@ def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransfo
             
         return target_articles, is_fallback
     except Exception as e:
-        logger.error(f"ベクトル化処理中にエラー発生: {e}")
+        logger.error(f"ベクトル化処理中に致命的なエラーが発生しました: {e}")
         return [], False
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
