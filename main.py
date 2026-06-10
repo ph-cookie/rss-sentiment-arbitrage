@@ -37,7 +37,7 @@ GEMINI_MODEL_NAME = 'gemini-3.1-flash-lite'
 
 # キャッシュ設定
 CACHE_FILE = "processed_urls.json"
-MAX_CACHE_SIZE = 150 # 保持する過去のURLの最大件数
+MAX_CACHE_SIZE = 200 # 保持する過去のURLの最大件数
 
 def get_mime_type(url: str) -> str:
     """URLからMIMEタイプを推測する（クエリパラメータを無視）"""
@@ -98,7 +98,7 @@ def extract_image_url(entry: Any, original_html: str) -> str:
             
     return image_url
 
-def fetch_free_articles(urls: List[str], seen_links: List[str], max_per_feed: int = 5) -> List[Any]:
+def fetch_free_articles(urls: List[str], seen_links: List[str], max_per_feed: int = 10) -> List[Any]:
     free_articles = []
     for url in urls:
         try:
