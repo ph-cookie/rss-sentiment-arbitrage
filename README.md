@@ -18,13 +18,15 @@
 ## 2. システムフロー
 
 <details>
-<summary><strong>システムフロー図を見る（クリックで展開）</strong></summary>
+<summary style="color: #666; font-size: 0.9em; cursor: pointer;">
+🔍 <b>クリックしてシステムフロー図を表示</b>
+</summary>
 
 ```mermaid
 graph TD
     A[GitHub Actions 定期実行] --> B[キャッシュ読込: 既読URL & 前回生成記事]
     B --> C[複数RSSフィードのパース]
-    C --> D{既読URL or 有料会員限定か}
+    C --> D{既読URL or 有料限定か}
     D -- Yes --> E[スキップ / 除外ログ出力]
     D -- No --> F[新規・無料記事の蓄積]
     
@@ -32,18 +34,19 @@ graph TD
     G -- No ---> K
     G -- Yes --> H[SentenceTransformerによる一括ベクトル化]
     
-    H --> I{興味類似度 < THRESHOLD}
+    H --> I{複数興味クラスタとの\n最大類似度 < THRESHOLD}
     I -- 対象あり --> J[関心外ニュースの抽出]
     I -- 0件 --> J2[類似度下位3件を強制抽出]
     
-    J --> L[LLMによる構造化生成 & タイトルリライト]
+    J --> L[LLMによる構造化生成 & \nタイトルリライト]
     J2 --> L
     L -- "API制限等: tenacityで自動再試行" --> M[MIME動的判定 / 余白最適化]
     
     M --> K[今回の新規記事 ＋ 前回の記事 を結合]
     K --> N[キャッシュ保存: 最新の既読URL & 今回生成した記事]
     N --> O[feedgenによるカスタムRSSファイル生成]
-    O --> P[GitHub Pages への自動デプロイ]
+    O --> Q[index.html 案内ページの自動生成]
+    Q --> P[GitHub Pages への自動デプロイ]
 ```
 
 </details>
@@ -83,40 +86,33 @@ graph TD
 
 ## 5. リポジトリ構成
 
-* main.py: RSS取得、一括ベクトル化、LLM生成、XML出力までの全パイプラインを管理するメインスクリプト
-* requirements.txt: 2026年現在の最新安定版パッケージ定義
-* .github/workflows/generate-rss.yml: 毎日指定時刻に動作する実行定義ファイル
+* `main.py`: RSS取得、一括ベクトル化、LLM生成、XML出力までの全パイプラインを管理するメインスクリプト
+* `requirements.txt`: 2026年現在の最新安定版パッケージ定義
+* `.github/workflows/generate-rss.yml`: 毎日指定時刻に動作する実行定義ファイル
 
 ## 6. セットアップ手順
 
-### 1. リポジトリの準備
+1. **リポジトリの準備**
+   本リポジトリを自身のGitHubアカウントにクローン、またはフォークして作成する。
 
-本リポジトリを自身のGitHubアカウントにクローン、またはフォークして作成する。
+2. **各種APIキー・トークンの取得**
+   * Google AI Studio から Gemini API キーを取得。
+   * Hugging Face から Access Token (Read権限) を取得。
 
-### 2. 各種APIキー・トークンの取得
+3. **GitHub Secrets の設定**
+   GitHubリポジトリの `Settings` > `Secrets and variables` > `Actions` に、以下の環境変数を正確に登録する。
+   * `API_KEY1`: 取得したGemini APIキー
+   * `HF_TOKEN1`: 取得したHugging Faceトークン
 
-* Google AI Studio から Gemini API キーを取得。
-* Hugging Face から Access Token (Read権限) を取得。
+4. **GitHub Pages の有効化**
+   GitHubリポジトリの `Settings` > `Pages` にて、Build and deployment の Source を「GitHub Actions」に設定する。
 
-### 3. GitHub Secrets の設定
-
-GitHubリポジトリの Settings > Secrets and variables > Actions に、以下の環境変数を正確に登録する。
-
-* API_KEY1: 取得したGemini APIキー
-* HF_TOKEN1: 取得したHugging Faceトークン
-
-### 4. GitHub Pages の有効化
-
-GitHubリポジトリの Settings > Pages にて、Build and deployment の Source を「GitHub Actions」に設定する。
-
-### 5. ソースコードのカスタマイズ
-
-main.py 内の以下の定数を、自身の情報収集目的に応じて変更する。
-
-* SOURCE_RSS_URLS: 取得対象とするニュースメディアのRSS URLリスト
-* INTEREST_TEXT: 自身の現在の興味（これと離れた記事が抽出される）
-* THRESHOLD: 類似度の閾値（デフォルト: 0.821）
-* EXCLUDE_KEYWORDS: 有料記事などを弾くための除外キーワード群
+5. **ソースコードのカスタマイズ**
+   `main.py` 内の以下の定数を、自身の情報収集目的に応じて変更する。
+   * `SOURCE_RSS_URLS`: 取得対象とするニュースメディアのRSS URLリスト
+   * `INTEREST_TEXT`: 自身の現在の興味（これと離れた記事が抽出される）
+   * `THRESHOLD`: 類似度の閾値（デフォルト: 0.821）
+   * `EXCLUDE_KEYWORDS`: 有料記事などを弾くための除外キーワード群
 
 ## 7. 利用方法
 
