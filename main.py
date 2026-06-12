@@ -354,7 +354,16 @@ def main():
 
             logger.info(f"処理完了: {ai_title[:15]}...")
 
-        all_feed_articles = current_run_articles + last_run_articles
+        # 重複を排除しつつ、今回と過去の記事を結合
+        unique_articles = {art["id"]: art for art in (current_run_articles + last_run_articles)}
+        all_feed_articles = list(unique_articles.values())
+        
+        # 日付が新しい順（降順）にソート
+        all_feed_articles.sort(key=lambda x: x["pubDate"], reverse=True)
+        
+        # 常に最新の30件のみを維持する（RSSフィードの肥大化防止）
+        MAX_FEED_ITEMS = 30
+        all_feed_articles = all_feed_articles[:MAX_FEED_ITEMS]
         
         fg = FeedGenerator()
         fg.title('AI再構築フィード (興味外ニュースの平易化)')
@@ -371,17 +380,17 @@ def main():
             fe.content(content=art["content"], type='html')
             fe.pubDate(datetime.fromisoformat(art["pubDate"]))
             
-            # MIMEタイプの動的判定を適用
             if art.get("enclosure"):
                 mime_type = get_mime_type(art["enclosure"])
                 fe.enclosure(art["enclosure"], 0, mime_type)
 
-        # キャッシュをJSONファイルに保存（次のActions実行へ引き継ぐ）
-        save_cache(seen_links, current_run_articles)
+        # 次回のAction実行へ引き継ぐため、抽出された最新30件を丸ごと保存する
+        save_cache(seen_links, all_feed_articles)
 
         try:
             fg.rss_file('rss.xml')
             logger.info(f"rss.xml 生成完了 (出力件数: {len(all_feed_articles)}件)")
+            
             # index.html の自動生成
             html_content = f"""<!DOCTYPE html>
 <html lang="ja">
@@ -416,8 +425,9 @@ def main():
             with open('index.html', 'w', encoding='utf-8') as f:
                 f.write(html_content)
             logger.info("index.html 生成完了")
+
         except Exception as e:
-            logger.error(f"XMLファイルの書き出しに失敗しました: {e}")
+            logger.error(f"ファイルの書き出しに失敗しました: {e}")
             raise
 
     except Exception as e:
