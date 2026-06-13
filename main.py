@@ -330,7 +330,7 @@ def main():
             """
             
             feed_title = entry.get('feed_title', '不明なソース')
-            custom_summary = f"興味類似度: {item['sim']:.3f | ソース: {feed_title}}"
+            custom_summary = f"興味類似度: {item['sim']:.3f} | ソース: {feed_title}"
             
             pub_parsed = getattr(entry, 'published_parsed', None)
             if pub_parsed:
