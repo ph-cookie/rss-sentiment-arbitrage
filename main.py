@@ -38,7 +38,7 @@ INTEREST_TEXT = [
     "旅、自然"
 ]
 
-THRESHOLD = 0.821
+THRESHOLD = 0.820
 GEMINI_MODEL_NAME = 'gemini-3.1-flash-lite'
 
 # キャッシュ設定
@@ -220,8 +220,10 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
 【解説】
 【概要】
 (概要本文)
+
 【背景・要因】
 (背景本文)
+
 【社会・読者への影響】
 (影響本文)
 
@@ -254,7 +256,7 @@ def main():
         hf_token = os.environ.get("HF_TOKEN1")
         
         if not gemini_key:
-            logger.critical("API_KEY1 が設定されていない")
+            logger.critical("API_KEY1 が未設定")
             sys.exit(1)
             
         if hf_token:
@@ -277,7 +279,7 @@ def main():
                 embedder = SentenceTransformer('intfloat/multilingual-e5-small')
                 target_articles, is_fallback = filter_articles_by_similarity(free_articles, embedder, INTEREST_TEXT, THRESHOLD)
             except Exception as e:
-                logger.error(f"モデルロードに失敗しました: {e}")
+                logger.error(f"モデルロードに失敗: {e}")
                 target_articles, is_fallback = [], False
 
         logger.info(f"処理対象: {len(target_articles)}件")
@@ -328,7 +330,7 @@ def main():
             """
             
             feed_title = entry.get('feed_title', '不明なソース')
-            custom_summary = f"ソース: {feed_title} | 興味類似度: {item['sim']:.3f}"
+            custom_summary = f"興味類似度: {item['sim']:.3f | ソース: {feed_title}}"
             
             pub_parsed = getattr(entry, 'published_parsed', None)
             if pub_parsed:
