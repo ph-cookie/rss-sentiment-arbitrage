@@ -229,7 +229,7 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
     """
     response = client.models.generate_content(
         model=GEMINI_MODEL_NAME,
-        contents=prompt
+        contents=prompt,
         config={
             "temperature": 0.2,
         }
