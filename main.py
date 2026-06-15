@@ -205,7 +205,7 @@ def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransfo
         logger.error(f"ベクトル化処理中に致命的なエラーが発生: {e}")
         return [], False
 
-@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=2, min=10, max=65))
 def generate_ai_explanation(client: Any, original_title: str, summary: str) -> dict:
     prompt = f"""
 以下のニュースの内容を読み、IT技術やデータ分析、論理的思考を好む読者が「構造的な面白さ」を感じて思わず読みたくなる「新しいタイトル」と、深掘りした「解説」を作成せよ。
@@ -381,7 +381,7 @@ def main():
             logger.info(f"処理完了: {ai_title[:15]}...")
 
             # 制限15RPM -> 60秒÷15回=最低4秒
-            time.sleep(5)
+            time.sleep(15)
 
         # 重複を排除しつつ、今回と過去の記事を結合
         unique_articles = {art["id"]: art for art in (current_run_articles + last_run_articles)}
