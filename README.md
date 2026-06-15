@@ -11,9 +11,12 @@
 
 ## 1. システム概要
 
-現代の情報収集におけるフィルターバブル（推薦アルゴリズムによる関心の偏り）を打破するための、逆フィルタリング型ニュース配信システム。
+現代の情報収集におけるフィルターバブル（推薦アルゴリズムによる関心の偏り）を打破するための、逆フィルタリング型ニュース配信システムです。
 
-事前定義した関心テキストと各記事のコサイン類似度を計算し、類似度が低い（関心外である）記事のみを抽出。LLMを用いて、興味を惹かれるタイトルへのリライト、構造化された解説を自動生成し、GitHub Pages経由で新たなRSSフィード（XML）として配信する。
+事前定義した複数の関心テキスト（興味クラスタ）と各記事のコサイン類似度を計算し、最も類似度が低い（関心外である）記事のみを抽出。最新のLLM（Google Search Grounding連携）を用いて、興味を惹かれるタイトルへのリライトと構造化された解説を自動生成し、GitHub Pages経由で新たなRSSフィード（XML）およびインデックスページとして配信します。
+
+> **⚠️ 免責事項 (Disclaimer)**  
+> 本システムが生成するAIによる解説や要約は、ユーザーに専門外の分野に対する興味・関心を持たせるための「導入」および「補完」を目的としています。事実関係についてはGoogle Search Grounding等を用いて精度向上を図っていますが、AI特有のハルシネーションや最新情報の反映漏れが含まれる可能性があります。**正確な事実関係や詳細については、必ずフィード内のリンクから本来のニュース記事（元記事）を通読することを前提にご確認ください。**
 
 ## 2. システムフロー
 
@@ -38,9 +41,9 @@ graph TD
     I -- 対象あり --> J[関心外ニュースの抽出]
     I -- 0件 --> J2[類似度下位3件を強制抽出]
     
-    J --> L[LLMによる構造化生成 & \nタイトルリライト]
+    J --> L[LLM + Google Search Groundingによる\n構造化生成 & タイトルリライト]
     J2 --> L
-    L -- "API制限等: tenacityで自動再試行" --> M[MIME動的判定 / 余白最適化]
+    L -- "API制限等: tenacityで自動再試行 & 5秒スロットリング" --> M[MIME動的判定 / 余白最適化]
     
     M --> K[新規記事と過去記事を結合し、最新30件を抽出]
     K --> N[キャッシュ保存: 最新の既読URL & 最新30件の記事データ]
@@ -53,45 +56,37 @@ graph TD
 
 ## 3. 主な機能
 
-* 常時ストック方式によるフィード維持  
- actions/cacheを利用し、処理済みURL（最大500件）と生成済み記事データをJSONで保存。重複処理を防ぎつつ、常に最新30件の記事を維持して出力するため、新規記事が0件の実行時でも過去の記事が消滅せず安定した配信を実現。
+* 興味クラスタによる高精度な逆フィルタリング    
+    単一のテキストによる意味の希釈化を防ぐため、興味関心を複数のクラスタ（配列）として定義。各記事に対し全クラスタとの類似度を計算し、最大類似度ベースで判定することで高精度に「関心外」を特定します。
 
-* キャッシュと履歴の二世代保持  
-  actions/cache を利用し、処理済みURL（最大150件）と前回生成記事データをJSONで保存。重複処理を防ぎつつ、RSSには「今回＋前回」の二世代分の記事を出力し、読み逃しを防止。
+* Google Search Groundingによる時事情報の補完    
+    Gemini APIの検索連携機能を有効化。AIの事前学習知識に頼らず、最新の時事情報や普遍的な構造的背景を正確に補完した解説を生成します。
 
-* 記事抽出の効率化  
-  SentenceTransformer (multilingual-e5-small) により全記事を一括ベクトル化。設定閾値以下の「関心外」ニュースのみを効率的に抽出。
+* 常時ストック方式によるフィード維持    
+    actions/cache を利用し、処理済みURL（最大500件）と生成済み記事データをJSONで保存。重複処理を防ぎつつ、常に最新30件の記事を維持して出力するため、新規記事が0件のタイミングでも過去の記事が消滅せず安定した配信を実現します。
 
-* フォールバック抽出  
-  閾値未満の記事が0件の場合は、類似度が低い下位3件を強制抽出してフィード出力を保証。
+* APIレートリミット対策（堅牢なエラーハンドリング）    
+    LLM生成部に5秒間の事前スロットリング（待機処理）を導入し、無料API枠（15 RPM等）の超過を防止。さらに tenacity を用いた指数的バックオフにより、一時的な通信エラーにも最大5回まで自動再試行します。万が一の生成失敗時も元記事の要約でフォールバックし、システムを止めません。
 
-* AIによるタイトル・本文最適化  
-  LLM で魅力的なタイトルにリライト。本文は「概要」「背景・要因」「社会・読者への影響」の3項目に構造化し解説。
+* RSS表示の最適化    
+    記事概要に元ソース名と類似度スコアを明記。画像URLから動的にMIMEタイプを判定する堅牢なenclosure対応や、インラインCSSによるHTML余白最適化を行っています。
 
-* 堅牢なエラーハンドリング  
-  tenacity を用いた指数的バックオフをLLM生成に実装。429エラーにも最大5回まで自動再試行。
-
-* 運用監視ログの強化  
-  有料記事除外の理由や処理件数を詳細に構造化してログ出力。
-
-* RSS表示の最適化  
-  記事概要に元ソース名と類似度スコアを明記。概要なしによる表示崩れ防止や、enclosure対応での画像埋め込みを最適化。
 
 ## 4. テクニカルスタック
 
 * 言語: Python 3.10
-* LLM SDK: google-genai (最新仕様)
-* 生成モデル: gemini-3.1-flash-lite
+* LLM SDK: google-genai (最新仕様 / Types対応)
+* 生成モデル: gemini-3.1-flash-lite (Google Search Grounding有効)
 * 埋め込みモデル: sentence-transformers (intfloat/multilingual-e5-small)
 * リトライ制御: tenacity
 * RSS生成: feedgen
-* インフラ: GitHub Actions (CI/CD), GitHub Pages (ホスティング)
+* インフラ: GitHub Actions (CI/CD), GitHub Pages (静的ホスティング)
 
 ## 5. リポジトリ構成
 
 * `main.py`: RSS取得、一括ベクトル化、LLM生成、XML出力までの全パイプラインを管理するメインスクリプト
-* `requirements.txt`: 2026年現在の最新安定版パッケージ定義
-* `.github/workflows/generate-rss.yml`: 毎日指定時刻に動作する実行定義ファイル
+* `requirements.txt`: 2026年現在の依存パッケージ一覧
+* `.github/workflows/generate-rss.yml`: 定期実行およびキャッシュ制御を行うGitHub Actions定義ファイル
 
 ## 6. セットアップ手順
 
@@ -99,11 +94,11 @@ graph TD
    本リポジトリを自身のGitHubアカウントにクローン、またはフォークして作成する。
 
 2. **各種APIキー・トークンの取得**
-   * Google AI Studio から Gemini API キーを取得。
-   * Hugging Face から Access Token (Read権限) を取得。
+   * [Google AI Studio](https://aistudio.google.com/) から Gemini API キーを取得。
+   * [Hugging Face](https://huggingface.co/settings/tokens) から Access Token (Read権限) を取得。
 
 3. **GitHub Secrets の設定**
-   GitHubリポジトリの `Settings` > `Secrets and variables` > `Actions` に、以下の環境変数を正確に登録する。
+   GitHubリポジトリの `Settings` > `Secrets and variables` > `Actions` に、以下の環境変数を登録する。
    * `API_KEY1`: 取得したGemini APIキー
    * `HF_TOKEN1`: 取得したHugging Faceトークン
 
@@ -119,10 +114,11 @@ graph TD
 
 ## 7. 利用方法
 
-GitHub Actionsの実行が正常に完了すると、GitHub Pages環境へ自動デプロイされる。
-生成された以下のURLを、FeedlyやNetNewsWireなどの任意のRSSリーダーアプリに登録して購読する。
+GitHub Actionsの実行が正常に完了すると、GitHub Pages環境へ自動デプロイされ、以下のURLに案内ページ（index.html）が生成されます。
 
-https://[GitHubユーザー名].github.io/[リポジトリ名]/rss.xml
+`https://[GitHubユーザー名].github.io/[リポジトリ名]/`
+
+同ディレクトリ内の rss.xml を、FeedlyやNetNewsWireなどの任意のRSSリーダーアプリに登録して購読してください。
 
 ## LICENSE
 
