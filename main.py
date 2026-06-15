@@ -5,25 +5,32 @@ import json
 import logging
 import mimetypes
 import time
+import socket
 from urllib.parse import urlparse
+from urllib.error import URLError
 from typing import List, Dict, Any
 import feedparser
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from google import genai
+from google.genai import types
 from feedgen.feed import FeedGenerator
 import pytz
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+# ロギング設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# ネットワーク通信のグローバルタイムアウトを設定（ハングアップ防止）
+socket.setdefaulttimeout(15)
 
 # 取得元のRSS URL
 SOURCE_RSS_URLS = [
     "https://rss.itmedia.co.jp/rss/2.0/business.xml",   # ITmedia ビジネスオンライン
     "https://prtimes.jp/index.rdf",                     # PR TIMES
-    "https://assets.wor.jp/rss/rdf/nikkei/news.rdf",    # 日経新聞（テスト用）
+    "https://assets.wor.jp/rss/rdf/nikkei/news.rdf",    # 日経新聞
     "https://feeds.japan.cnet.com/rss/cnet/all.rdf",    # CNET Japan
     "https://news.yahoo.co.jp/rss/topics/domestic.xml", # Yahoo 国内
     "https://news.yahoo.co.jp/rss/topics/world.xml",    # Yahoo 国際
@@ -68,7 +75,7 @@ def load_cache() -> tuple[List[str], List[Dict]]:
                 logger.info(f"キャッシュ読込成功（既読URL: {len(seen_urls)}件, 前回記事: {len(last_run_articles)}件）")
                 return seen_urls, last_run_articles
         except Exception as e:
-            logger.warning(f"キャッシュの読み込みに失敗しました: {e}")
+            logger.warning(f"キャッシュの読み込みに失敗: {e}")
     else:
         logger.info("初回実行、またはキャッシュが存在しません。")
     return [], []
@@ -110,6 +117,15 @@ def fetch_free_articles(urls: List[str], seen_links: List[str], max_per_feed: in
     for url in urls:
         try:
             feed = feedparser.parse(url)
+            
+            if getattr(feed, 'bozo', 0) == 1:
+                exception = getattr(feed, 'bozo_exception', 'Unknown error')
+                if isinstance(exception, URLError) and isinstance(exception.reason, socket.timeout):
+                    logger.error(f"URL取得タイムアウト ({url})")
+                    continue
+                else:
+                    logger.warning(f"フィード解析警告 ({url}): {exception}")
+            
             feed_title = getattr(feed.feed, 'title', url)
             collected = 0
             excluded_count = 0
@@ -118,7 +134,7 @@ def fetch_free_articles(urls: List[str], seen_links: List[str], max_per_feed: in
             for entry in feed.entries:
                 if collected >= max_per_feed:
                     break
-                    
+                
                 # 既読（キャッシュ済み）のURLはスキップ
                 raw_link = getattr(entry, 'link', '').strip().split('#')[0]
                 if raw_link in seen_links:
@@ -143,8 +159,10 @@ def fetch_free_articles(urls: List[str], seen_links: List[str], max_per_feed: in
                 logger.info(f"処理対象記事なし: {url}")
             else:
                 logger.info(f"取得完了: {url} (新規: {collected}件 / 除外: {excluded_count}件 / 既読スキップ: {skipped_count}件)")
+                
         except Exception as e:
-            logger.error(f"URL取得エラー ({url}): {e}")
+            logger.error(f"URL取得予期せぬエラー ({url}): {e}")
+            
     return free_articles
 
 def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransformer, interest_texts: List[str], threshold: float) -> tuple[List[Dict], bool]:
@@ -184,7 +202,7 @@ def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransfo
             
         return target_articles, is_fallback
     except Exception as e:
-        logger.error(f"ベクトル化処理中に致命的なエラーが発生しました: {e}")
+        logger.error(f"ベクトル化処理中に致命的なエラーが発生: {e}")
         return [], False
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -202,11 +220,12 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
 - [対象テキスト]にある情報のみを情報源とし、事実関係を勝手に変更・推測しないこと。
 - 以下の構成とし、見出しは【】のみで記述すること（HTMLタグ不要）。
   【概要】
-  [対象テキスト]の事実の要約
+  [対象テキスト]の事実要約
   【背景・要因】
   [対象テキスト]から読み取れる背景や原因を抽出。
+  なぜ起きたか。検索機能やモデルの知識を活用し、技術的仕組み、ビジネスモデルの構造、歴史的経緯など「普遍的な知識」で深掘りする。ただし、現在の政治家名や役職など、最新の時事情報を勝手に断定・推測することは厳禁。
   【社会・読者への影響】
-  [対象テキスト]が示唆するマクロな視点での波及効果。どのような影響があるか。
+  マクロな視点での波及効果。
 - 外部知識（モデルの学習）による補足は一切行わず、テキストに存在しない情報は「情報不足のため不明」とすること。
 - 強調箇所はHTMLの <strong> タグを用いること。Markdownの太字記号は絶対に使用しないこと。
 
@@ -217,10 +236,10 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
 【解説】
 【概要】
 (概要本文)
-\n
+\n\n
 【背景・要因】
 (背景本文)
-\n
+\n\n
 【社会・読者への影響】
 (影響本文)
 
@@ -230,9 +249,10 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
     response = client.models.generate_content(
         model=GEMINI_MODEL_NAME,
         contents=prompt,
-        config={
-            "temperature": 0.2,
-        }
+        config=types.GenerateContentConfig(
+            temperature=0.3,
+            tools=[{"google_search": {}}]
+        )
     )
     
     result = {"title": original_title, "explanation": "AIによる解説が生成されませんでした（フィルタブロック等）。"}
@@ -277,7 +297,7 @@ def main():
             logger.info("2. モデルロードと類似度フィルタリング")
             try:
                 embedder = SentenceTransformer('intfloat/multilingual-e5-small')
-                target_articles, is_fallback = filter_articles_by_similarity(free_articles, embedder, INTEREST_TEXT, THRESHOLD)
+                target_articles, is_fallback = filter_articles_by_similarity(free_articles, embedder, INTEREST_TEXTS, THRESHOLD)
             except Exception as e:
                 logger.error(f"モデルロードに失敗: {e}")
                 target_articles, is_fallback = [], False
@@ -301,9 +321,13 @@ def main():
                 ai_title = ai_result["title"]
                 ai_explanation = ai_result["explanation"]
             except Exception as e:
-                logger.error(f"AI解説生成の最終エラー: {e}")
+                if "429" in str(e):
+                    logger.error(f"APIレートリミット到達 (429): {e}")
+                else:
+                    logger.error(f"AI解説生成に失敗 (API起因等): {e}")
+                
                 ai_title = original_title
-                ai_explanation = "解説の生成に失敗しました。"
+                ai_explanation = f"【概要】\n{summary}\n\n【構造的背景】\n情報不足または生成エラーのため不明\n\n【社会・読者への影響】\n情報不足または生成エラーのため不明"
                 
             raw_link = getattr(entry, 'link', '').strip().split('#')[0]
             image_url = extract_image_url(entry, original_html)
@@ -389,7 +413,6 @@ def main():
                 mime_type = get_mime_type(art["enclosure"])
                 fe.enclosure(art["enclosure"], 0, mime_type)
 
-        # 次回のAction実行へ引き継ぐため、抽出された最新30件を丸ごと保存する
         save_cache(seen_links, all_feed_articles)
 
         try:
