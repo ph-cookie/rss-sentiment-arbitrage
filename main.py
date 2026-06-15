@@ -208,7 +208,7 @@ def filter_articles_by_similarity(articles: List[Any], embedder: SentenceTransfo
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=2, min=10, max=65))
 def generate_ai_explanation(client: Any, original_title: str, summary: str) -> dict:
     prompt = f"""
-以下のニュースの内容を読み、IT技術やデータ分析、論理的思考を好む読者が「構造的な面白さ」を感じて思わず読みたくなる「新しいタイトル」と、深掘りした「解説」を作成せよ。
+以下の[対象テキスト]を読み、IT技術やデータ分析、論理的思考を好む読者が「構造的な面白さ」を感じて思わず読みたくなる「新しいタイトル」と「解説」を作成せよ。
 
 【タイトルの作成ルール】
 - 形式は「[具体的な事実]：[それが引き起こすシステム・社会構造への影響]」の2部構成とすること。
@@ -221,12 +221,12 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
 - 以下の構成とし、見出しは【】のみで記述すること（HTMLタグ不要）。
   【概要】
   [対象テキスト]の事実要約
-  【背景・要因】
+  【構造的背景】
   [対象テキスト]から読み取れる背景や原因を抽出。
-  なぜ起きたか。検索機能やモデルの知識を活用し、技術的仕組み、ビジネスモデルの構造、歴史的経緯など「普遍的な知識」で深掘りする。ただし、現在の政治家名や役職など、最新の時事情報を勝手に断定・推測することは厳禁。
+  なぜ起きたか。現在の政治家名や最新の企業動向など「不確かな最新時事」の勝手な推測・補完は厳禁。ビジネスモデル、技術的仕組み、マクロ経済の一般原則など「普遍的な知識・構造」のみを用いて深掘りすること。
   【社会・読者への影響】
   マクロな視点での波及効果。
-- 外部知識（モデルの学習）による補足は一切行わず、テキストに存在しない情報は「情報不足のため不明」とすること。
+- 400〜700文字程度。
 - 強調箇所はHTMLの <strong> タグを用いること。Markdownの太字記号は絶対に使用しないこと。
 
 出力フォーマット:
@@ -236,10 +236,10 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
 【解説】
 【概要】
 (概要本文)
-\n\n
+
 【背景・要因】
 (背景本文)
-\n\n
+
 【社会・読者への影響】
 (影響本文)
 
@@ -250,8 +250,7 @@ def generate_ai_explanation(client: Any, original_title: str, summary: str) -> d
         model=GEMINI_MODEL_NAME,
         contents=prompt,
         config=types.GenerateContentConfig(
-            temperature=0.3,
-            tools=[{"google_search": {}}]
+            temperature=0.3
         )
     )
     
@@ -381,7 +380,7 @@ def main():
             logger.info(f"処理完了: {ai_title[:15]}...")
 
             # 制限15RPM -> 60秒÷15回=最低4秒
-            time.sleep(15)
+            time.sleep(5)
 
         # 重複を排除しつつ、今回と過去の記事を結合
         unique_articles = {art["id"]: art for art in (current_run_articles + last_run_articles)}
