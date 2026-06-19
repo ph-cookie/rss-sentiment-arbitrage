@@ -1,13 +1,29 @@
-# rss-sentiment-arbitrage
+<h1 align="center">rss-sentiment-arbitrage</h1>
 
-[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
-[![Build Status](https://github.com/ph-cookie/rss-sentiment-arbitrage/actions/workflows/update-rss.yml/badge.svg)](https://github.com/ph-cookie/rss-sentiment-arbitrage/actions)
-[![GitHub Pages](https://img.shields.io/badge/Hosted_on-GitHub_Pages-brightgreen.svg)](https://ph-cookie.github.io/rss-sentiment-arbitrage/)
-[![Gemini API](https://img.shields.io/badge/Powered_by-Gemini_3.1_Flash_Lite-orange.svg)](https://aistudio.google.com/)
-[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97_Hugging_Face-multilingual--e5--small-yellow.svg)](https://huggingface.co/intfloat/multilingual-e5-small)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+    <strong>指定したニュースメディアのRSSから、ユーザーの関心領域外（フィルターバブル外）のニュースを自動抽出し、<br>Gemini APIを用いて大学生向けに構造化・平易化したカスタムRSSフィードを生成・配信するシステム。</strong>
+</p>
 
-指定したニュースメディアのRSSから、ユーザーの**関心領域外（フィルターバブル外）のニュース**を自動抽出し、Gemini APIを用いて大学生向けに構造化・平易化したカスタムRSSフィードを生成・配信するシステム。
+<p align="center">
+  <a href="https://www.python.org/downloads/release/python-3100/">
+    <img src="https://img.shields.io/badge/python-3.10-blue.svg" alt="Python 3.10">
+  </a>
+  <a href="https://github.com/ph-cookie/rss-sentiment-arbitrage/actions">
+    <img src="https://github.com/ph-cookie/rss-sentiment-arbitrage/actions/workflows/update-rss.yml/badge.svg" alt="Build Status">
+  </a>
+  <a href="https://ph-cookie.github.io/rss-sentiment-arbitrage/">
+    <img src="https://img.shields.io/badge/Hostedon-GitHubPages-brightgreen.svg" alt="GitHub Pages">
+  </a>
+  <a href="https://aistudio.google.com/">
+    <img src="https://img.shields.io/badge/Poweredby-Gemini3.1FlashLite-orange.svg" alt="Gemini API">
+  </a>
+  <a href="https://huggingface.co/intfloat/multilingual-e5-small">
+    <img src="https://img.shields.io/badge/%F0%9F%A4%97HuggingFace-multilingual--e5--small-yellow.svg" alt="Hugging Face">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  </a>
+</p>
 
 ## 1. システム概要
 
@@ -15,8 +31,10 @@
 
 事前定義した複数の関心テキスト（興味クラスタ）と各記事のコサイン類似度を計算し、最も類似度が低い（関心外である）記事のみを抽出。最新のLLM（Google Search Grounding連携）を用いて、興味を惹かれるタイトルへのリライトと構造化された解説を自動生成し、GitHub Pages経由で新たなRSSフィード（XML）およびインデックスページとして配信します。
 
-> **⚠️ 免責事項 (Disclaimer)**  
-> 本システムが生成するAIによる解説や要約は、ユーザーに専門外の分野に対する興味・関心を持たせるための「導入」および「補完」を目的としています。事実関係についてはGoogle Search Grounding等を用いて精度向上を図っていますが、AI特有のハルシネーションや最新情報の反映漏れが含まれる可能性があります。**正確な事実関係や詳細については、必ずフィード内のリンクから本来のニュース記事（元記事）を通読することを前提にご確認ください。**
+> [!WARNING]
+> 本システムが生成するAIによる解説や要約は、ユーザーに専門外の分野に対する興味・関心を持たせるための「導入」および「補完」を目的としています。
+>事実関係についてはGoogle Search Grounding等を用いて精度向上を図っていますが、AI特有のハルシネーションや最新情報の反映漏れが含まれる可能性があります。
+> **正確な事実関係や詳細については、必ずフィード内のリンクから本来のニュース記事（元記事）を通読することを前提にご確認ください。**
 
 ## 2. システムフロー
 
