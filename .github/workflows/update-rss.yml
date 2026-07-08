@@ -4,9 +4,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:
-  schedule: []
-    # 毎日 JPT 5, 10, 15, 20時  (UTC指定: 20:00, 1:00, 6:00, 11:00)
-    #- cron: '11 0,1,6,20 * * *'
+  # 定期実行を無効化する場合はブロックごとコメントアウトします
+  # schedule:
+  #   - cron: '11 0,1,6,20 * * *'
   workflow_dispatch: # 手動実行用ボタン有効化
 
 jobs:
@@ -29,13 +29,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: processed_urls.json
-          # run_idを含めることで毎回「新規保存」として上書き（疑似的な状態保存）
           key: processed-urls-${{ github.run_id }}
-          # 読み込み時は最新の processed-urls- を探して復元
           restore-keys: |
             processed-urls-
 
-      # HFモデルのキャッシュ ★
       - name: Cache Hugging Face models
         uses: actions/cache@v4
         with:
@@ -51,10 +48,18 @@ jobs:
         run: |
           python main.py
 
+      # ★修正ポイント: Pages用のディレクトリを作成して必要なファイルだけを移動
+      - name: Prepare Pages directory
+        run: |
+          mkdir public
+          # もし main.py が rss.xml を出力するなら public にコピー
+          # 他に公開したいファイル(index.html等)があればここに追加
+          cp rss.xml public/ || echo "rss.xml not found!"
+
       - name: Upload artifact for GitHub Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.' # ルートディレクトリ全体（rss.xmlを含む）をアップロード
+          path: 'public' # '.' ではなく公開用ディレクトリを指定
 
   deploy:
     needs: build-and-deploy
